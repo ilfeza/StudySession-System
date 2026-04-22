@@ -21,7 +21,7 @@ from app.services.pomodoro_service import (
     PomodoroService,
 )
 from app.services.session_stage_service import SessionStageService
-from app.websocket.manager import chat_manager, widgets_manager
+from app.websocket.manager import chat_manager, tasks_manager, widgets_manager
 
 settings = get_settings()
 
@@ -279,5 +279,59 @@ async def widgets_ws(websocket: WebSocket, session_id: int):
             await widgets_manager.broadcast(session_id, {'event': 'pomodoro_state', 'payload': service.build_snapshot(state)})
     except WebSocketDisconnect:
         widgets_manager.disconnect(session_id, websocket)
+    finally:
+        db.close()
+
+
+@app.websocket('/ws/sessions/{session_id}/tasks')
+async def tasks_ws(websocket: WebSocket, session_id: int):
+    token = websocket.query_params.get('token', '')
+    if not token:
+        await websocket.close(code=4401, reason='Требуется токен авторизации.')
+        return
+
+    try:
+        user_id = int(decode_token(token))
+    except Exception:
+        await websocket.close(code=4401, reason='Неверный токен авторизации.')
+        return
+
+    db = Session(bind=engine)
+    user = db.get(User, user_id)
+    if not user:
+        await websocket.close(code=4404, reason='Пользователь не найден.')
+        db.close()
+        return
+
+    session = db.get(VideoSession, session_id)
+    if not session:
+        await websocket.close(code=4404, reason='Сессия не найдена.')
+        db.close()
+        return
+
+    is_allowed = False
+    if user.role == UserRole.admin or session.created_by_id == user.id:
+        is_allowed = True
+    else:
+        membership = (
+            db.query(GroupMember)
+            .filter(GroupMember.group_id == session.group_id, GroupMember.user_id == user.id)
+            .first()
+        )
+        is_allowed = membership is not None
+
+    if not is_allowed:
+        await websocket.close(code=4403, reason='Недостаточно прав для этой сессии.')
+        db.close()
+        return
+
+    await tasks_manager.connect(session_id, websocket)
+    SessionService(db).touch_participant(session_id, user.id)
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        tasks_manager.disconnect(session_id, websocket)
     finally:
         db.close()

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import decode_token
 from app.db.session import get_db
-from app.models import Group, GroupMember, User, UserRole
+from app.models import Group, GroupMember, User, UserRole, VideoSession
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/api/auth/login')
 
@@ -67,3 +67,41 @@ def ensure_moderator(group_id: int, user: User, db: Session) -> None:
 
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Нужны права модератора.')
+
+
+def get_session_or_404(session_id: int, db: Session) -> VideoSession:
+    session = db.get(VideoSession, session_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Сессия не найдена.')
+    return session
+
+
+def ensure_session_member(session_id: int, user: User, db: Session) -> VideoSession:
+    session = get_session_or_404(session_id, db)
+    ensure_group_member(session.group_id, user, db)
+    return session
+
+
+def ensure_session_moderator(session_id: int, user: User, db: Session) -> VideoSession:
+    session = get_session_or_404(session_id, db)
+
+    if user.role == UserRole.admin or session.created_by_id == user.id:
+        return session
+
+    group = db.get(Group, session.group_id)
+    if group and group.owner_id == user.id:
+        return session
+
+    membership = (
+        db.query(GroupMember)
+        .filter(
+            GroupMember.group_id == session.group_id,
+            GroupMember.user_id == user.id,
+            GroupMember.can_moderate.is_(True),
+        )
+        .first()
+    )
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Нужны права модератора.')
+
+    return session

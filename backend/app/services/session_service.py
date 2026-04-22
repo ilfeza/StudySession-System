@@ -14,12 +14,21 @@ class SessionService:
         self.db = db
         self.repo = SessionRepository(db)
 
-    def create_session(self, group_id: int, title: str, description: str, starts_at: datetime, user_id: int) -> VideoSession:
+    def create_session(
+        self,
+        group_id: int,
+        title: str,
+        description: str,
+        starts_at: datetime,
+        user_id: int,
+        template_key: str = '',
+    ) -> VideoSession:
         room = f'group-{group_id}-session-{int(datetime.utcnow().timestamp())}'
         session = VideoSession(
             group_id=group_id,
             title=title,
             description=description,
+            template_key=template_key.strip(),
             starts_at=starts_at,
             created_by_id=user_id,
             livekit_room=room,
@@ -62,3 +71,6 @@ class SessionService:
 
     def history(self, session_id: int):
         return self.repo.list_messages(session_id)
+
+    def participants(self, session_id: int):
+        return self.repo.list_participants(session_id)

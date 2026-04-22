@@ -1,6 +1,7 @@
-﻿from sqlalchemy.orm import Session
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
-from app.models import Task
+from app.models import SessionParticipant, SessionTaskStatus, Task, User, VideoSession
 from app.repositories.task_repository import TaskRepository
 from app.services.assignment_service import AssignmentService
 
@@ -24,8 +25,30 @@ class TaskService:
         assignment = self.assignment_service.assign_task(task)
         return task, assignment
 
+    def create_session_task(self, session: VideoSession, creator: User, payload: dict) -> Task:
+        assignee_id = payload.get('assignee_id')
+        if assignee_id is not None:
+            self._ensure_session_assignee(session.id, assignee_id)
+
+        status_value = payload.get('status', SessionTaskStatus.todo)
+        task = Task(
+            group_id=session.group_id,
+            session_id=session.id,
+            title=payload['title'],
+            description=payload.get('description', ''),
+            deadline=payload.get('deadline'),
+            created_by_id=creator.id,
+            assignee_id=assignee_id,
+            status=status_value,
+            is_completed=status_value == SessionTaskStatus.done,
+        )
+        return self.repo.create_task(task)
+
     def list_tasks(self, group_id: int):
         return self.repo.list_group_tasks(group_id)
+
+    def list_session_tasks(self, session_id: int):
+        return self.repo.list_session_tasks(session_id)
 
     def update_task(self, task_id: int, payload: dict):
         task = self.repo.get_task(task_id)
@@ -41,3 +64,42 @@ class TaskService:
         self.repo.db.commit()
         self.repo.db.refresh(task)
         return task
+
+    def update_session_task(self, task_id: int, payload: dict) -> Task:
+        task = self.repo.get_task(task_id)
+        if not task or task.session_id is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Задача не найдена.')
+
+        if 'assignee_id' in payload and payload['assignee_id'] is not None:
+            self._ensure_session_assignee(task.session_id, int(payload['assignee_id']))
+
+        for key, value in payload.items():
+            if key == 'required_skills':
+                value = ','.join(sorted({skill.strip().lower() for skill in value if skill.strip()}))
+            if key == 'status' and value is not None:
+                task.is_completed = value == SessionTaskStatus.done
+            setattr(task, key, value)
+
+        self.repo.db.commit()
+        self.repo.db.refresh(task)
+        return task
+
+    def delete_session_task(self, task_id: int) -> Task:
+        task = self.repo.get_task(task_id)
+        if not task or task.session_id is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Задача не найдена.')
+        self.repo.delete_task(task)
+        return task
+
+    def _ensure_session_assignee(self, session_id: int, assignee_id: int) -> SessionParticipant:
+        participant = (
+            self.repo.db.query(SessionParticipant)
+            .filter(SessionParticipant.session_id == session_id, SessionParticipant.user_id == assignee_id)
+            .first()
+        )
+        if not participant:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Исполнителем можно назначить только участника текущей видеосессии.',
+            )
+        return participant

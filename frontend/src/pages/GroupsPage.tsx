@@ -1,189 +1,360 @@
-﻿import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import GroupAddRoundedIcon from '@mui/icons-material/GroupAddRounded';
-import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
+import AddCircleRoundedIcon from '@mui/icons-material/AddCircleRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import LibraryBooksRoundedIcon from '@mui/icons-material/LibraryBooksRounded';
+import MeetingRoomRoundedIcon from '@mui/icons-material/MeetingRoomRounded';
+import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded';
 import {
   Alert,
+  Box,
   Button,
+  Chip,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
+  MenuItem,
   Paper,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
-import dayjs from 'dayjs';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 
-import { TaskHub } from '../components/TaskHub';
-import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
-import { Group, VideoSession } from '../types';
+import { MaterialsPanel } from '../components/materials/MaterialsPanel';
+import type { Group, SessionSummaryHistoryItem, VideoSession } from '../types';
+
+const sessionTemplates = [
+  { key: 'exam_prep', name: 'Подготовка к экзамену', description: 'План, вопросы, повторение и фиксация прогресса.' },
+  { key: 'team_project', name: 'Командный проект', description: 'Распределение ролей, задач и контроль статусов.' },
+  { key: 'topic_review', name: 'Разбор темы', description: 'Обсуждение теории, материалов и выводов по теме.' },
+];
 
 export function GroupsPage() {
-  const { user } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [catalog, setCatalog] = useState<Group[]>([]);
-  const [sessionsByGroup, setSessionsByGroup] = useState<Record<number, VideoSession[]>>({});
-  const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
-  const [newGroup, setNewGroup] = useState('');
-  const [open, setOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [sessions, setSessions] = useState<VideoSession[]>([]);
+  const [history, setHistory] = useState<SessionSummaryHistoryItem[]>([]);
+  const [tab, setTab] = useState<'sessions' | 'history' | 'materials'>('sessions');
   const [error, setError] = useState('');
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [groupDescription, setGroupDescription] = useState('');
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [sessionDescription, setSessionDescription] = useState('');
+  const [sessionStartsAt, setSessionStartsAt] = useState('');
+  const [templateKey, setTemplateKey] = useState(sessionTemplates[0].key);
 
-  const canModerateByRole = user?.role === 'admin' || user?.role === 'instructor';
+  const selectedGroup = useMemo(
+    () => groups.find((group) => group.id === selectedGroupId) ?? null,
+    [groups, selectedGroupId],
+  );
 
-  async function reload() {
+  const loadGroups = useCallback(async () => {
+    setError('');
     try {
-      const [myGroupsResponse, catalogResponse] = await Promise.all([
+      const [groupsResponse, catalogResponse] = await Promise.all([
         api.get<Group[]>('/groups'),
         api.get<Group[]>('/groups/catalog'),
       ]);
-
-      setGroups(myGroupsResponse.data);
+      setGroups(groupsResponse.data);
       setCatalog(catalogResponse.data);
-
-      const pairs = await Promise.all(
-        myGroupsResponse.data.map(async (group) => {
-          const sessions = await api.get<VideoSession[]>(`/sessions/group/${group.id}`);
-          return [group.id, sessions.data] as const;
-        }),
-      );
-      setSessionsByGroup(Object.fromEntries(pairs));
-
-      if (!selectedGroup && myGroupsResponse.data[0]) {
-        setSelectedGroup(myGroupsResponse.data[0].id);
-      }
+      setSelectedGroupId((prev) => prev ?? groupsResponse.data[0]?.id ?? null);
     } catch (err) {
-      setError((err as Error).message || 'Не удалось загрузить группы.');
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить группы.');
     }
-  }
-
-  useEffect(() => {
-    reload();
   }, []);
 
-  async function createGroup() {
-    if (!newGroup.trim()) {
+  const loadGroupData = useCallback(async (groupId: number) => {
+    try {
+      const [sessionsResponse, historyResponse] = await Promise.all([
+        api.get<VideoSession[]>(`/sessions/group/${groupId}`),
+        api.get<SessionSummaryHistoryItem[]>(`/groups/${groupId}/history`),
+      ]);
+      setSessions(sessionsResponse.data);
+      setHistory(historyResponse.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить данные комнаты.');
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadGroups();
+  }, [loadGroups]);
+
+  useEffect(() => {
+    if (selectedGroupId) {
+      void loadGroupData(selectedGroupId);
+    }
+  }, [loadGroupData, selectedGroupId]);
+
+  useEffect(() => {
+    const template = sessionTemplates.find((item) => item.key === templateKey);
+    if (!template) {
       return;
     }
-    setError('');
+    if (!sessionTitle.trim()) {
+      setSessionTitle(template.name);
+    }
+    if (!sessionDescription.trim()) {
+      setSessionDescription(template.description);
+    }
+  }, [templateKey]);
+
+  async function handleCreateGroup() {
+    if (!groupName.trim()) {
+      return;
+    }
     try {
-      await api.post('/groups', { name: newGroup, description: 'Новая учебная группа' });
-      setOpen(false);
-      setNewGroup('');
-      await reload();
+      await api.post('/groups', { name: groupName.trim(), description: groupDescription.trim() });
+      setGroupDialogOpen(false);
+      setGroupName('');
+      setGroupDescription('');
+      await loadGroups();
     } catch (err) {
-      setError((err as Error).message || 'Не удалось создать группу.');
+      setError(err instanceof Error ? err.message : 'Не удалось создать комнату.');
     }
   }
 
-  async function createSession(groupId: number) {
-    setError('');
-    try {
-      await api.post('/sessions', {
-        group_id: groupId,
-        title: 'Плановая сессия',
-        description: 'Обсуждение задач и материалов',
-        starts_at: dayjs().add(5, 'minute').toISOString(),
-      });
-      await reload();
-    } catch (err) {
-      setError((err as Error).message || 'Не удалось создать сессию.');
-    }
-  }
-
-  async function joinGroup(groupId: number) {
-    setError('');
+  async function handleJoinGroup(groupId: number) {
     try {
       await api.post(`/groups/${groupId}/join`);
-      await reload();
+      await loadGroups();
     } catch (err) {
-      setError((err as Error).message || 'Не удалось вступить в группу.');
+      setError(err instanceof Error ? err.message : 'Не удалось вступить в комнату.');
     }
   }
 
-  const myGroupIds = useMemo(() => new Set(groups.map((group) => group.id)), [groups]);
-  const availableGroups = useMemo(() => catalog.filter((group) => !myGroupIds.has(group.id)), [catalog, myGroupIds]);
+  async function handleCreateSession() {
+    if (!selectedGroupId || !sessionTitle.trim() || !sessionStartsAt) {
+      return;
+    }
+    try {
+      await api.post('/sessions', {
+        group_id: selectedGroupId,
+        title: sessionTitle.trim(),
+        description: sessionDescription.trim(),
+        template_key: templateKey,
+        starts_at: new Date(sessionStartsAt).toISOString(),
+      });
+      setSessionDialogOpen(false);
+      setSessionTitle('');
+      setSessionDescription('');
+      setSessionStartsAt('');
+      setTemplateKey(sessionTemplates[0].key);
+      await loadGroupData(selectedGroupId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось создать сессию.');
+    }
+  }
 
   return (
-    <Stack spacing={2}>
-      {error && <Alert severity="error">{error}</Alert>}
+    <Stack spacing={2.5}>
       <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-            <Typography variant="h5">Мои группы и комнаты</Typography>
-            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setOpen(true)}>Создать группу</Button>
+        <Paper sx={{ p: 2.5, flex: 1, borderRadius: 5 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
+            <Box>
+              <Typography variant="h4" fontWeight={900}>Учебные комнаты</Typography>
+              <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+                Здесь создаются сессии, шаблоны встреч, история и материалы комнаты.
+              </Typography>
+            </Box>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button variant="outlined" startIcon={<AddCircleRoundedIcon />} onClick={() => setGroupDialogOpen(true)}>
+                Создать комнату
+              </Button>
+              <Button variant="contained" startIcon={<RocketLaunchRoundedIcon />} onClick={() => setSessionDialogOpen(true)} disabled={!selectedGroupId}>
+                Создать сессию
+              </Button>
+            </Stack>
           </Stack>
-          <Stack spacing={1.2}>
-            {groups.length === 0 && <Typography color="text.secondary">Вы пока не состоите ни в одной группе.</Typography>}
+          {error ? <Alert severity="warning" sx={{ mt: 2 }}>{error}</Alert> : null}
+        </Paper>
+
+        <Paper sx={{ p: 2.5, width: { xs: '100%', lg: 360 }, borderRadius: 5 }}>
+          <Typography variant="h6" fontWeight={800}>Доступные шаблоны</Typography>
+          <Stack spacing={1.1} sx={{ mt: 1.5 }}>
+            {sessionTemplates.map((template) => (
+              <Paper key={template.key} variant="outlined" sx={{ p: 1.25, borderRadius: 3 }}>
+                <Typography fontWeight={800}>{template.name}</Typography>
+                <Typography variant="body2" color="text.secondary">{template.description}</Typography>
+              </Paper>
+            ))}
+          </Stack>
+        </Paper>
+      </Stack>
+
+      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
+        <Paper sx={{ p: 2, borderRadius: 5, width: { xs: '100%', lg: 320 } }}>
+          <Typography variant="h6" fontWeight={800}>Мои комнаты</Typography>
+          <Stack spacing={1.1} sx={{ mt: 1.5 }}>
             {groups.map((group) => (
               <Paper
                 key={group.id}
-                onClick={() => setSelectedGroup(group.id)}
+                onClick={() => setSelectedGroupId(group.id)}
                 sx={{
                   p: 1.5,
+                  borderRadius: 3.5,
                   cursor: 'pointer',
-                  border: selectedGroup === group.id ? '2px solid #165DFF' : '1px solid #dfe6f4',
+                  border: selectedGroupId === group.id ? '2px solid #1976d2' : '1px solid #dbe5f2',
+                  background: selectedGroupId === group.id ? 'rgba(25, 118, 210, 0.06)' : '#fff',
                 }}
               >
-                <Typography fontWeight={700}>{group.name}</Typography>
-                <Typography variant="body2" color="text.secondary">{group.description}</Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
-                  <Button size="small" startIcon={<VideocamRoundedIcon />} onClick={() => createSession(group.id)}>Создать комнату</Button>
-                </Stack>
-                <Stack spacing={1} sx={{ mt: 1 }}>
-                  {(sessionsByGroup[group.id] || []).map((session) => (
-                    <Button key={session.id} component={RouterLink} to={`/sessions/${session.id}`} variant="outlined" size="small">
-                      Войти в «{session.title}»
-                    </Button>
-                  ))}
-                </Stack>
+                <Typography fontWeight={800}>{group.name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {group.description || 'Описание пока не добавлено.'}
+                </Typography>
               </Paper>
             ))}
+            {groups.length === 0 ? <Alert severity="info">У вас пока нет комнат.</Alert> : null}
           </Stack>
         </Paper>
 
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h5" sx={{ mb: 2 }}>Каталог групп</Typography>
-          <Stack spacing={1.2}>
-            {availableGroups.length === 0 && <Typography color="text.secondary">Нет доступных групп для вступления.</Typography>}
-            {availableGroups.map((group) => (
-              <Paper key={group.id} sx={{ p: 1.5, border: '1px solid #dfe6f4' }}>
-                <Typography fontWeight={700}>{group.name}</Typography>
-                <Typography variant="body2" color="text.secondary">{group.description}</Typography>
-                <Button sx={{ mt: 1 }} size="small" variant="contained" startIcon={<GroupAddRoundedIcon />} onClick={() => joinGroup(group.id)}>
-                  Вступить
-                </Button>
-              </Paper>
-            ))}
-          </Stack>
-        </Paper>
-      </Stack>
-
-      <Divider />
-
-      <Stack>
-        {selectedGroup ? (
-          <TaskHub groupId={selectedGroup} moderatorMode={Boolean(canModerateByRole)} />
-        ) : (
-          <Paper sx={{ p: 2 }}>
-            <Typography>Выберите группу для работы с задачами.</Typography>
+        <Stack spacing={2} sx={{ flex: 1 }}>
+          <Paper sx={{ p: 2, borderRadius: 5 }}>
+            <Typography variant="h6" fontWeight={800}>Каталог комнат</Typography>
+            <Stack spacing={1} sx={{ mt: 1.5 }}>
+              {catalog.map((group) => {
+                const joined = groups.some((item) => item.id === group.id);
+                return (
+                  <Paper key={group.id} variant="outlined" sx={{ p: 1.5, borderRadius: 3.5 }}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
+                      <Box>
+                        <Typography fontWeight={800}>{group.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {group.description || 'Описание пока не добавлено.'}
+                        </Typography>
+                      </Box>
+                      <Button variant={joined ? 'outlined' : 'contained'} disabled={joined} onClick={() => void handleJoinGroup(group.id)}>
+                        {joined ? 'Вы уже в комнате' : 'Вступить'}
+                      </Button>
+                    </Stack>
+                  </Paper>
+                );
+              })}
+            </Stack>
           </Paper>
-        )}
+
+          <Paper sx={{ p: 2, borderRadius: 5, minHeight: 420 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
+              <Box>
+                <Typography variant="h5" fontWeight={900}>{selectedGroup?.name ?? 'Выберите комнату'}</Typography>
+                <Typography color="text.secondary">
+                  {selectedGroup?.description || 'Здесь будут сессии, история и материалы выбранной комнаты.'}
+                </Typography>
+              </Box>
+              {selectedGroup ? <Chip label={`Комната #${selectedGroup.id}`} /> : null}
+            </Stack>
+
+            <Tabs
+              value={tab}
+              onChange={(_, next) => setTab(next)}
+              sx={{ mt: 1.5, mb: 2 }}
+            >
+              <Tab value="sessions" icon={<MeetingRoomRoundedIcon />} iconPosition="start" label="Сессии" />
+              <Tab value="history" icon={<HistoryRoundedIcon />} iconPosition="start" label="История" />
+              <Tab value="materials" icon={<LibraryBooksRoundedIcon />} iconPosition="start" label="Материалы" />
+            </Tabs>
+
+            {tab === 'sessions' ? (
+              <Stack spacing={1.2}>
+                {sessions.map((session) => (
+                  <Paper key={session.id} variant="outlined" sx={{ p: 1.5, borderRadius: 3.5 }}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
+                      <Box>
+                        <Typography fontWeight={800}>{session.title}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {new Date(session.starts_at).toLocaleString('ru-RU')}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {session.description || 'Описание сессии пока не добавлено.'}
+                        </Typography>
+                      </Box>
+                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                        {session.template_key ? <Chip label={sessionTemplates.find((item) => item.key === session.template_key)?.name ?? session.template_key} /> : null}
+                        <Button component={RouterLink} to={`/sessions/${session.id}`} variant="contained">
+                          Открыть
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                ))}
+                {selectedGroup && sessions.length === 0 ? <Alert severity="info">В этой комнате пока нет сессий.</Alert> : null}
+              </Stack>
+            ) : null}
+
+            {tab === 'history' ? (
+              <Stack spacing={1.2}>
+                {history.map((item) => (
+                  <Paper key={item.summary_id} variant="outlined" sx={{ p: 1.5, borderRadius: 3.5 }}>
+                    <Typography fontWeight={800}>{item.session_title}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {new Date(item.session_date).toLocaleString('ru-RU')}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.75 }}>
+                      {item.short_description || 'Итоги сессии пока не заполнены.'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                      Участники: {item.participants.join(', ') || 'нет данных'}
+                    </Typography>
+                  </Paper>
+                ))}
+                {selectedGroup && history.length === 0 ? <Alert severity="info">История этой комнаты пока пуста.</Alert> : null}
+              </Stack>
+            ) : null}
+
+            {tab === 'materials' && selectedGroup ? <MaterialsPanel groupId={selectedGroup.id} /> : null}
+          </Paper>
+        </Stack>
       </Stack>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Новая группа</DialogTitle>
+      <Dialog open={groupDialogOpen} onClose={() => setGroupDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Создать комнату</DialogTitle>
         <DialogContent>
-          <TextField autoFocus label="Название" fullWidth value={newGroup} onChange={(event) => setNewGroup(event.target.value)} />
+          <Stack spacing={1.5} sx={{ pt: 1 }}>
+            <TextField label="Название комнаты" value={groupName} onChange={(event) => setGroupName(event.target.value)} fullWidth />
+            <TextField label="Описание" value={groupDescription} onChange={(event) => setGroupDescription(event.target.value)} multiline minRows={3} fullWidth />
+            <Button variant="contained" onClick={() => void handleCreateGroup()} disabled={!groupName.trim()}>
+              Сохранить
+            </Button>
+          </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>Отмена</Button>
-          <Button onClick={createGroup}>Создать</Button>
-        </DialogActions>
+      </Dialog>
+
+      <Dialog open={sessionDialogOpen} onClose={() => setSessionDialogOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Создать учебную сессию</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 1 }}>
+            <TextField
+              select
+              label="Шаблон"
+              value={templateKey}
+              onChange={(event) => setTemplateKey(event.target.value)}
+              fullWidth
+            >
+              {sessionTemplates.map((template) => (
+                <MenuItem key={template.key} value={template.key}>{template.name}</MenuItem>
+              ))}
+            </TextField>
+            <TextField label="Название сессии" value={sessionTitle} onChange={(event) => setSessionTitle(event.target.value)} fullWidth />
+            <TextField label="Описание" value={sessionDescription} onChange={(event) => setSessionDescription(event.target.value)} multiline minRows={3} fullWidth />
+            <TextField
+              label="Начало"
+              type="datetime-local"
+              value={sessionStartsAt}
+              onChange={(event) => setSessionStartsAt(event.target.value)}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+            />
+            <Button variant="contained" onClick={() => void handleCreateSession()} disabled={!selectedGroupId || !sessionTitle.trim() || !sessionStartsAt}>
+              Создать сессию
+            </Button>
+          </Stack>
+        </DialogContent>
       </Dialog>
     </Stack>
   );

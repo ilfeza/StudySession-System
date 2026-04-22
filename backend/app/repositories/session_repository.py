@@ -1,6 +1,6 @@
 ﻿from sqlalchemy.orm import Session
 
-from app.models import ChatMessage, SessionParticipant, VideoSession
+from app.models import ChatMessage, SessionParticipant, User, VideoSession
 
 
 class SessionRepository:
@@ -39,5 +39,14 @@ class SessionRepository:
             .filter(ChatMessage.session_id == session_id)
             .order_by(ChatMessage.created_at.asc())
             .limit(200)
+            .all()
+        )
+
+    def list_participants(self, session_id: int):
+        return (
+            self.db.query(SessionParticipant, User)
+            .join(User, User.id == SessionParticipant.user_id)
+            .filter(SessionParticipant.session_id == session_id)
+            .order_by(SessionParticipant.is_online.desc(), User.full_name.asc())
             .all()
         )

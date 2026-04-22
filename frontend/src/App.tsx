@@ -6,6 +6,8 @@ import { useAuth } from './context/AuthContext';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GroupsPage } from './pages/GroupsPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { SessionHistoryPage } from './pages/SessionHistoryPage';
 import { VideoSessionPage } from './pages/VideoSessionPage';
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
@@ -36,6 +38,8 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/groups" element={<GroupsPage />} />
+        <Route path="/history" element={<SessionHistoryPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/sessions/:sessionId" element={<VideoSessionPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>

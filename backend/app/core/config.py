@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     livekit_url: str = 'ws://livekit:7880'
     livekit_api_key: str = 'devkey'
     livekit_api_secret: str = 'devkey_super_secure_32_chars_minimum_2026'
+    openai_api_key: str = ''
+    openai_model: str = 'gpt-5.2'
+    openai_base_url: str = 'https://api.openai.com/v1'
 
 
 @lru_cache(maxsize=1)

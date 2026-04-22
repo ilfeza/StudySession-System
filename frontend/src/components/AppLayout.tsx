@@ -31,6 +31,8 @@ export function AppLayout() {
     <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
       <Button component={RouterLink} to="/dashboard" onClick={() => setOpen(false)}>Дашборд</Button>
       <Button component={RouterLink} to="/groups" startIcon={<MenuBookRoundedIcon />} onClick={() => setOpen(false)}>Группы</Button>
+      <Button component={RouterLink} to="/history" onClick={() => setOpen(false)}>История</Button>
+      <Button component={RouterLink} to="/profile" onClick={() => setOpen(false)}>Профиль</Button>
       <Typography variant="body2" sx={{ px: isMobile ? 1 : 0 }}>{user?.full_name}</Typography>
       <Button color="error" variant="outlined" onClick={() => { setOpen(false); logout(); }}>Выйти</Button>
     </Stack>

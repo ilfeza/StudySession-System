@@ -25,3 +25,4 @@ class ConnectionManager:
 
 chat_manager = ConnectionManager()
 widgets_manager = ConnectionManager()
+tasks_manager = ConnectionManager()

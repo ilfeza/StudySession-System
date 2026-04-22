@@ -19,6 +19,18 @@ class TaskRepository:
     def get_task(self, task_id: int) -> Task | None:
         return self.db.get(Task, task_id)
 
+    def list_session_tasks(self, session_id: int):
+        return (
+            self.db.query(Task)
+            .filter(Task.session_id == session_id)
+            .order_by(Task.created_at.desc(), Task.id.desc())
+            .all()
+        )
+
+    def delete_task(self, task: Task) -> None:
+        self.db.delete(task)
+        self.db.commit()
+
     def create_assignment(self, assignment: TaskAssignment) -> TaskAssignment:
         self.db.add(assignment)
         self.db.commit()

@@ -39,6 +39,18 @@ class AssignmentStatus(str, enum.Enum):
     reassigned = 'reassigned'
 
 
+class SessionTaskStatus(str, enum.Enum):
+    todo = 'todo'
+    in_progress = 'in_progress'
+    done = 'done'
+
+
+class SessionSummaryStatus(str, enum.Enum):
+    draft = 'draft'
+    completed = 'completed'
+    skipped = 'skipped'
+
+
 class User(Base):
     __tablename__ = 'users'
 
@@ -56,8 +68,14 @@ class User(Base):
 
     memberships: Mapped[list[GroupMember]] = relationship('GroupMember', back_populates='user')
     created_groups: Mapped[list[Group]] = relationship('Group', back_populates='owner')
-    created_tasks: Mapped[list[Task]] = relationship('Task', back_populates='creator')
+    created_tasks: Mapped[list[Task]] = relationship(
+        'Task',
+        back_populates='creator',
+        foreign_keys='Task.created_by_id',
+    )
+    assigned_tasks: Mapped[list[Task]] = relationship('Task', back_populates='assignee', foreign_keys='Task.assignee_id')
     announcements: Mapped[list['GroupAnnouncement']] = relationship('GroupAnnouncement', back_populates='author')
+    session_participations: Mapped[list['SessionParticipant']] = relationship('SessionParticipant', back_populates='user')
 
 
 class Group(Base):
@@ -75,6 +93,11 @@ class Group(Base):
     tasks: Mapped[list[Task]] = relationship('Task', back_populates='group', cascade='all, delete-orphan')
     announcements: Mapped[list['GroupAnnouncement']] = relationship(
         'GroupAnnouncement',
+        back_populates='group',
+        cascade='all, delete-orphan',
+    )
+    materials: Mapped[list['GroupMaterial']] = relationship(
+        'GroupMaterial',
         back_populates='group',
         cascade='all, delete-orphan',
     )
@@ -114,6 +137,7 @@ class VideoSession(Base):
     group_id: Mapped[int] = mapped_column(ForeignKey('groups.id'), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, default='', nullable=False)
+    template_key: Mapped[str] = mapped_column(String(50), default='', nullable=False)
     created_by_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
     starts_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     ends_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
@@ -128,6 +152,13 @@ class VideoSession(Base):
         cascade='all, delete-orphan',
     )
     chat_messages: Mapped[list[ChatMessage]] = relationship('ChatMessage', back_populates='session')
+    tasks: Mapped[list['Task']] = relationship('Task', back_populates='session')
+    summary: Mapped['SessionSummary | None'] = relationship(
+        'SessionSummary',
+        back_populates='session',
+        cascade='all, delete-orphan',
+        uselist=False,
+    )
 
 
 class SessionParticipant(Base):
@@ -142,6 +173,73 @@ class SessionParticipant(Base):
     is_online: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     session: Mapped[VideoSession] = relationship('VideoSession', back_populates='participants')
+    user: Mapped[User] = relationship('User', back_populates='session_participations')
+
+
+class SessionSummary(Base):
+    __tablename__ = 'session_summaries'
+    __table_args__ = (UniqueConstraint('session_id', name='uq_session_summary_session'),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey('video_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+    group_id: Mapped[int] = mapped_column(ForeignKey('groups.id', ondelete='CASCADE'), nullable=False, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    completed_work: Mapped[str] = mapped_column(Text, default='', nullable=False)
+    next_steps: Mapped[str] = mapped_column(Text, default='', nullable=False)
+    short_description: Mapped[str] = mapped_column(String(300), default='', nullable=False)
+    status: Mapped[SessionSummaryStatus] = mapped_column(
+        Enum(SessionSummaryStatus),
+        default=SessionSummaryStatus.draft,
+        nullable=False,
+    )
+    remind_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    session: Mapped[VideoSession] = relationship('VideoSession', back_populates='summary')
+    participants: Mapped[list['SessionSummaryParticipant']] = relationship(
+        'SessionSummaryParticipant',
+        back_populates='summary',
+        cascade='all, delete-orphan',
+    )
+    tasks: Mapped[list['SessionSummaryTask']] = relationship(
+        'SessionSummaryTask',
+        back_populates='summary',
+        cascade='all, delete-orphan',
+    )
+
+
+class SessionSummaryParticipant(Base):
+    __tablename__ = 'session_summary_participants'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    summary_id: Mapped[int] = mapped_column(ForeignKey('session_summaries.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    full_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
+    role_in_session: Mapped[str] = mapped_column(String(50), default='participant', nullable=False)
+
+    summary: Mapped[SessionSummary] = relationship('SessionSummary', back_populates='participants')
+
+
+class SessionSummaryTask(Base):
+    __tablename__ = 'session_summary_tasks'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    summary_id: Mapped[int] = mapped_column(ForeignKey('session_summaries.id', ondelete='CASCADE'), nullable=False, index=True)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey('tasks.id', ondelete='SET NULL'), nullable=True)
+    title_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    assignee_name_snapshot: Mapped[str] = mapped_column(String(255), default='', nullable=False)
+    deadline_snapshot: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status_at_summary: Mapped[SessionTaskStatus] = mapped_column(
+        Enum(SessionTaskStatus),
+        default=SessionTaskStatus.todo,
+        nullable=False,
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    summary: Mapped[SessionSummary] = relationship('SessionSummary', back_populates='tasks')
 
 
 class Task(Base):
@@ -149,17 +247,26 @@ class Task(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     group_id: Mapped[int] = mapped_column(ForeignKey('groups.id'), nullable=False)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey('video_sessions.id', ondelete='CASCADE'), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, default='', nullable=False)
     required_skills: Mapped[str] = mapped_column(Text, default='', nullable=False)
     priority: Mapped[TaskPriority] = mapped_column(Enum(TaskPriority), default=TaskPriority.medium, nullable=False)
     deadline: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    assignee_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    status: Mapped[SessionTaskStatus] = mapped_column(
+        Enum(SessionTaskStatus),
+        default=SessionTaskStatus.todo,
+        nullable=False,
+    )
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     group: Mapped[Group] = relationship('Group', back_populates='tasks')
-    creator: Mapped[User] = relationship('User', back_populates='created_tasks')
+    session: Mapped[VideoSession | None] = relationship('VideoSession', back_populates='tasks')
+    creator: Mapped[User] = relationship('User', back_populates='created_tasks', foreign_keys=[created_by_id])
+    assignee: Mapped[User | None] = relationship('User', back_populates='assigned_tasks', foreign_keys=[assignee_id])
     assignments: Mapped[list[TaskAssignment]] = relationship(
         'TaskAssignment',
         back_populates='task',
@@ -267,3 +374,26 @@ class File(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     task: Mapped[Task] = relationship('Task', back_populates='files')
+
+
+class GroupMaterialKind(str, enum.Enum):
+    pdf = 'pdf'
+    link = 'link'
+
+
+class GroupMaterial(Base):
+    __tablename__ = 'group_materials'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    group_id: Mapped[int] = mapped_column(ForeignKey('groups.id', ondelete='CASCADE'), nullable=False, index=True)
+    uploaded_by_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    kind: Mapped[GroupMaterialKind] = mapped_column(Enum(GroupMaterialKind), nullable=False)
+    url: Mapped[str] = mapped_column(Text, default='', nullable=False)
+    original_name: Mapped[str] = mapped_column(String(255), default='', nullable=False)
+    stored_name: Mapped[str] = mapped_column(String(255), default='', nullable=False, unique=True)
+    mime_type: Mapped[str] = mapped_column(String(255), default='', nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    group: Mapped[Group] = relationship('Group', back_populates='materials')
