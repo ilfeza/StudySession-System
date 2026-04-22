@@ -1,0 +1,13 @@
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+rtc:
+  tcp_port: 7881
+  # Keep the UDP range aligned with the published Docker ports.
+  port_range_start: 50000
+  port_range_end: 50100
+  # Advertise the host IP that browser clients should use for ICE.
+  use_external_ip: false
+  node_ip: "__LIVEKIT_NODE_IP__"
+keys:
+  devkey: devkey_super_secure_32_chars_minimum_2026
