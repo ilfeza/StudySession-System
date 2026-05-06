@@ -3,14 +3,17 @@ import { Alert, Box, IconButton, Paper, Stack, TextField, Typography } from '@mu
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api/client';
-import { ChatMessage } from '../types';
+import { useAuth } from '../context/AuthContext';
+import type { ChatMessage } from '../types';
 
 interface Props {
   sessionId: number;
   variant?: 'default' | 'session';
+  showHeader?: boolean;
 }
 
-export function ChatPanel({ sessionId, variant = 'default' }: Props) {
+export function ChatPanel({ sessionId, variant = 'default', showHeader = true }: Props) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
@@ -38,6 +41,7 @@ export function ChatPanel({ sessionId, variant = 'default' }: Props) {
           {
             id: parsed.payload.id,
             session_id: sessionId,
+            sender_id: parsed.payload.sender_id,
             sender_name: parsed.payload.sender_name,
             message: parsed.payload.message,
             created_at: parsed.payload.created_at,
@@ -57,6 +61,7 @@ export function ChatPanel({ sessionId, variant = 'default' }: Props) {
     if (!value.trim()) {
       return;
     }
+
     api.post('/chat/message', { session_id: sessionId, message: value.trim() })
       .then(() => setValue(''))
       .catch((err: Error) => setError(err.message || 'Не удалось отправить сообщение.'));
@@ -66,24 +71,28 @@ export function ChatPanel({ sessionId, variant = 'default' }: Props) {
     <Paper
       sx={{
         p: isSessionVariant ? 0 : 3,
-        height: isSessionVariant ? '100%' : 420,
-        minHeight: 0,
+        height: '100%',
+        minHeight: isSessionVariant ? 0 : 420,
         display: 'flex',
         flexDirection: 'column',
         gap: 1.5,
-        borderRadius: 0,
+        borderRadius: isSessionVariant ? 0 : 3,
         border: 'none',
         boxShadow: 'none',
         backgroundColor: 'transparent',
       }}
     >
-      <Stack spacing={0.5}>
-        <Typography variant="h6">{isSessionVariant ? 'Чат встречи' : 'Чат сессии'}</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Короткие сообщения команды в одном потоке.
-        </Typography>
-      </Stack>
+      {showHeader ? (
+        <Stack spacing={0.5}>
+          <Typography variant="h6">{isSessionVariant ? 'Чат встречи' : 'Чат сессии'}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Сообщения команды в одном спокойном потоке.
+          </Typography>
+        </Stack>
+      ) : null}
+
       {error ? <Alert severity="warning">{error}</Alert> : null}
+
       <Box
         ref={listRef}
         sx={{
@@ -92,33 +101,42 @@ export function ChatPanel({ sessionId, variant = 'default' }: Props) {
           overflowY: 'auto',
           border: '1px solid',
           borderColor: 'divider',
-          borderRadius: 3,
+          borderRadius: 4,
           p: 1.5,
-          backgroundColor: '#f9fafb',
+          backgroundColor: '#f8fafc',
         }}
       >
         <Stack spacing={1}>
-          {messages.map((msg) => (
-            <Box
-              key={msg.id}
-              sx={{
-                p: 1.5,
-                borderRadius: 2,
-                backgroundColor: '#ffffff',
-                border: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
-              <Typography variant="caption" fontWeight={700} color="text.secondary">
-                {msg.sender_name}
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
-                {msg.message}
-              </Typography>
-            </Box>
-          ))}
+          {messages.map((msg) => {
+            const isOwn = (msg.sender_id != null && user?.id === msg.sender_id) || user?.full_name === msg.sender_name;
+
+            return (
+              <Stack key={msg.id} alignItems={isOwn ? 'flex-end' : 'flex-start'}>
+                <Box
+                  sx={{
+                    maxWidth: '80%',
+                    p: 1.5,
+                    borderRadius: 3,
+                    backgroundColor: isOwn ? '#111827' : '#ffffff',
+                    color: isOwn ? '#ffffff' : '#111827',
+                    border: '1px solid',
+                    borderColor: isOwn ? '#111827' : 'divider',
+                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                  }}
+                >
+                  <Typography variant="caption" fontWeight={700} sx={{ color: isOwn ? 'rgba(255,255,255,0.72)' : 'text.secondary' }}>
+                    {isOwn ? 'Вы' : msg.sender_name}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap', color: 'inherit' }}>
+                    {msg.message}
+                  </Typography>
+                </Box>
+              </Stack>
+            );
+          })}
         </Stack>
       </Box>
+
       <Stack direction="row" spacing={1} alignItems="flex-end">
         <TextField
           fullWidth
@@ -127,6 +145,7 @@ export function ChatPanel({ sessionId, variant = 'default' }: Props) {
           onChange={(event) => setValue(event.target.value)}
           multiline
           maxRows={4}
+          placeholder="Напишите короткое сообщение"
         />
         <IconButton color="primary" onClick={send} sx={{ width: 44, height: 44, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
           <SendRoundedIcon />
