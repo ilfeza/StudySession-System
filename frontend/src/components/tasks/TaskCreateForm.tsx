@@ -1,10 +1,5 @@
 import AddTaskRoundedIcon from '@mui/icons-material/AddTaskRounded';
-import {
-  Button,
-  MenuItem,
-  Stack,
-  TextField,
-} from '@mui/material';
+import { Button, MenuItem, Stack, TextField } from '@mui/material';
 import { useState } from 'react';
 
 import type { SessionParticipant, SessionTaskStatus } from '../../types';
@@ -63,29 +58,10 @@ export function TaskCreateForm({
   }
 
   return (
-    <Stack spacing={1.25}>
-      <TextField
-        label="Название задачи"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        disabled={disabled || submitting}
-        required
-      />
-      <TextField
-        label="Описание"
-        value={description}
-        onChange={(event) => setDescription(event.target.value)}
-        disabled={disabled || submitting}
-        multiline
-        minRows={3}
-      />
-      <TextField
-        select
-        label="Исполнитель"
-        value={assigneeId}
-        onChange={(event) => setAssigneeId(event.target.value)}
-        disabled={disabled || submitting}
-      >
+    <Stack spacing={1.5} sx={{ pt: 1 }}>
+      <TextField label="Название задачи" value={title} onChange={(event) => setTitle(event.target.value)} disabled={disabled || submitting} required />
+      <TextField label="Описание" value={description} onChange={(event) => setDescription(event.target.value)} disabled={disabled || submitting} multiline minRows={4} />
+      <TextField select label="Исполнитель" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} disabled={disabled || submitting}>
         <MenuItem value="">Без исполнителя</MenuItem>
         {participants.map((participant) => (
           <MenuItem key={participant.id} value={String(participant.id)}>
@@ -93,31 +69,13 @@ export function TaskCreateForm({
           </MenuItem>
         ))}
       </TextField>
-      <TextField
-        select
-        label="Статус"
-        value={status}
-        onChange={(event) => setStatus(event.target.value as SessionTaskStatus)}
-        disabled={disabled || submitting}
-      >
+      <TextField select label="Статус" value={status} onChange={(event) => setStatus(event.target.value as SessionTaskStatus)} disabled={disabled || submitting}>
         <MenuItem value="todo">To do</MenuItem>
         <MenuItem value="in_progress">In progress</MenuItem>
         <MenuItem value="done">Done</MenuItem>
       </TextField>
-      <TextField
-        label="Дедлайн"
-        type="datetime-local"
-        value={deadline}
-        onChange={(event) => setDeadline(event.target.value)}
-        disabled={disabled || submitting}
-        InputLabelProps={{ shrink: true }}
-      />
-      <Button
-        variant="contained"
-        startIcon={<AddTaskRoundedIcon />}
-        onClick={handleSubmit}
-        disabled={disabled || submitting || !title.trim()}
-      >
+      <TextField label="Дедлайн" type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} disabled={disabled || submitting} InputLabelProps={{ shrink: true }} />
+      <Button variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={handleSubmit} disabled={disabled || submitting || !title.trim()}>
         {submitLabel}
       </Button>
     </Stack>

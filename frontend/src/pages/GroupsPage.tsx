@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  Divider,
   MenuItem,
   Paper,
   Stack,
@@ -27,10 +28,16 @@ import { MaterialsPanel } from '../components/materials/MaterialsPanel';
 import type { Group, SessionSummaryHistoryItem, VideoSession } from '../types';
 
 const sessionTemplates = [
-  { key: 'exam_prep', name: 'Подготовка к экзамену', description: 'План, вопросы, повторение и фиксация прогресса.' },
-  { key: 'team_project', name: 'Командный проект', description: 'Распределение ролей, задач и контроль статусов.' },
-  { key: 'topic_review', name: 'Разбор темы', description: 'Обсуждение теории, материалов и выводов по теме.' },
+  { key: 'exam_prep', name: 'Подготовка к экзамену', description: 'Вопросы, повторение и фиксация прогресса.' },
+  { key: 'team_project', name: 'Командный проект', description: 'Роли, задачи и контроль статусов.' },
+  { key: 'topic_review', name: 'Разбор темы', description: 'Теория, материалы и выводы по теме.' },
 ];
+
+const panelBorder = {
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 2.5,
+};
 
 export function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -78,7 +85,7 @@ export function GroupsPage() {
       setSessions(sessionsResponse.data);
       setHistory(historyResponse.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить данные комнаты.');
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить данные группы.');
     }
   }, []);
 
@@ -103,7 +110,7 @@ export function GroupsPage() {
     if (!sessionDescription.trim()) {
       setSessionDescription(template.description);
     }
-  }, [templateKey]);
+  }, [templateKey, sessionDescription, sessionTitle]);
 
   async function handleCreateGroup() {
     if (!groupName.trim()) {
@@ -116,7 +123,7 @@ export function GroupsPage() {
       setGroupDescription('');
       await loadGroups();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось создать комнату.');
+      setError(err instanceof Error ? err.message : 'Не удалось создать группу.');
     }
   }
 
@@ -125,7 +132,7 @@ export function GroupsPage() {
       await api.post(`/groups/${groupId}/join`);
       await loadGroups();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось вступить в комнату.');
+      setError(err instanceof Error ? err.message : 'Не удалось вступить в группу.');
     }
   }
 
@@ -153,171 +160,321 @@ export function GroupsPage() {
   }
 
   return (
-    <Stack spacing={2.5}>
-      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
-        <Paper sx={{ p: 2.5, flex: 1, borderRadius: 5 }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
-            <Box>
-              <Typography variant="h4" fontWeight={900}>Учебные комнаты</Typography>
-              <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-                Здесь создаются сессии, шаблоны встреч, история и материалы комнаты.
-              </Typography>
-            </Box>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant="outlined" startIcon={<AddCircleRoundedIcon />} onClick={() => setGroupDialogOpen(true)}>
-                Создать комнату
-              </Button>
-              <Button variant="contained" startIcon={<RocketLaunchRoundedIcon />} onClick={() => setSessionDialogOpen(true)} disabled={!selectedGroupId}>
-                Создать сессию
-              </Button>
-            </Stack>
-          </Stack>
-          {error ? <Alert severity="warning" sx={{ mt: 2 }}>{error}</Alert> : null}
-        </Paper>
-
-        <Paper sx={{ p: 2.5, width: { xs: '100%', lg: 360 }, borderRadius: 5 }}>
-          <Typography variant="h6" fontWeight={800}>Доступные шаблоны</Typography>
-          <Stack spacing={1.1} sx={{ mt: 1.5 }}>
-            {sessionTemplates.map((template) => (
-              <Paper key={template.key} variant="outlined" sx={{ p: 1.25, borderRadius: 3 }}>
-                <Typography fontWeight={800}>{template.name}</Typography>
-                <Typography variant="body2" color="text.secondary">{template.description}</Typography>
-              </Paper>
-            ))}
-          </Stack>
-        </Paper>
+    <Stack spacing={3}>
+      <Stack
+        direction={{ xs: 'column', lg: 'row' }}
+        justifyContent="space-between"
+        spacing={2}
+        sx={{
+          pb: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Box>
+          <Typography variant="h4">Группы</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, maxWidth: 720 }}>
+            Пространства для встреч, задач, материалов и истории работы команды.
+          </Typography>
+        </Box>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ flexShrink: 0 }}>
+          <Button variant="outlined" startIcon={<AddCircleRoundedIcon />} onClick={() => setGroupDialogOpen(true)}>
+            Новая группа
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<RocketLaunchRoundedIcon />}
+            onClick={() => setSessionDialogOpen(true)}
+            disabled={!selectedGroupId}
+          >
+            Новая сессия
+          </Button>
+        </Stack>
       </Stack>
 
-      <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
-        <Paper sx={{ p: 2, borderRadius: 5, width: { xs: '100%', lg: 320 } }}>
-          <Typography variant="h6" fontWeight={800}>Мои комнаты</Typography>
-          <Stack spacing={1.1} sx={{ mt: 1.5 }}>
-            {groups.map((group) => (
-              <Paper
-                key={group.id}
-                onClick={() => setSelectedGroupId(group.id)}
-                sx={{
-                  p: 1.5,
-                  borderRadius: 3.5,
-                  cursor: 'pointer',
-                  border: selectedGroupId === group.id ? '2px solid #1976d2' : '1px solid #dbe5f2',
-                  background: selectedGroupId === group.id ? 'rgba(25, 118, 210, 0.06)' : '#fff',
-                }}
-              >
-                <Typography fontWeight={800}>{group.name}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {group.description || 'Описание пока не добавлено.'}
-                </Typography>
-              </Paper>
-            ))}
-            {groups.length === 0 ? <Alert severity="info">У вас пока нет комнат.</Alert> : null}
-          </Stack>
-        </Paper>
+      {error ? <Alert severity="warning">{error}</Alert> : null}
 
-        <Stack spacing={2} sx={{ flex: 1 }}>
-          <Paper sx={{ p: 2, borderRadius: 5 }}>
-            <Typography variant="h6" fontWeight={800}>Каталог комнат</Typography>
-            <Stack spacing={1} sx={{ mt: 1.5 }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gap: { xs: 3, xl: 4 },
+          gridTemplateColumns: {
+            xs: '1fr',
+            lg: '220px minmax(0, 1fr)',
+            xl: '240px minmax(0, 1fr) 280px',
+          },
+          alignItems: 'start',
+        }}
+      >
+        <Box
+          component="aside"
+          sx={{
+            minWidth: 0,
+            pr: { lg: 2 },
+            borderRight: { lg: '1px solid' },
+            borderColor: { lg: 'divider' },
+          }}
+        >
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.08em' }}>
+                Мои группы
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5 }}>
+                {groups.length} {groups.length === 1 ? 'группа' : 'группы'}
+              </Typography>
+            </Box>
+
+            <Stack spacing={0.75}>
+              {groups.map((group) => {
+                const active = selectedGroupId === group.id;
+                return (
+                  <Box
+                    key={group.id}
+                    onClick={() => setSelectedGroupId(group.id)}
+                    sx={{
+                      px: 1.5,
+                      py: 1.25,
+                      borderRadius: 2.5,
+                      cursor: 'pointer',
+                      border: '1px solid',
+                      borderColor: active ? '#9ca3af' : 'transparent',
+                      bgcolor: active ? '#ffffff' : 'transparent',
+                      transition: 'background-color 120ms ease, border-color 120ms ease',
+                      '&:hover': {
+                        bgcolor: '#ffffff',
+                        borderColor: '#d1d5db',
+                      },
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ pr: 1 }}>
+                      {group.name}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{
+                        mt: 0.5,
+                        display: '-webkit-box',
+                        overflow: 'hidden',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                      }}
+                    >
+                      {group.description || 'Описание пока не добавлено.'}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Stack>
+
+            {groups.length === 0 ? <Alert severity="info">У вас пока нет групп.</Alert> : null}
+          </Stack>
+        </Box>
+
+        <Box component="main" sx={{ minWidth: 0 }}>
+          <Stack spacing={3}>
+            <Box>
+              <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.08em' }}>
+                    Активная группа
+                  </Typography>
+                  <Typography variant="h4" sx={{ mt: 0.5 }}>
+                    {selectedGroup?.name ?? 'Выберите группу'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 760 }}>
+                    {selectedGroup?.description || 'Здесь будут сессии, история и материалы выбранной группы.'}
+                  </Typography>
+                </Box>
+                {selectedGroup ? <Chip label={`Группа #${selectedGroup.id}`} sx={{ alignSelf: 'flex-start' }} /> : null}
+              </Stack>
+
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={{ xs: 1, sm: 3 }}
+                divider={<Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', sm: 'block' } }} />}
+                sx={{ mt: 2.5, pt: 2.5, borderTop: '1px solid', borderColor: 'divider' }}
+              >
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Сессий
+                  </Typography>
+                  <Typography variant="subtitle1">{sessions.length}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    История
+                  </Typography>
+                  <Typography variant="subtitle1">{history.length}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Материалы
+                  </Typography>
+                  <Typography variant="subtitle1">{selectedGroup ? 'В группе' : 'Недоступно'}</Typography>
+                </Box>
+              </Stack>
+            </Box>
+
+            <Box>
+              <Tabs value={tab} onChange={(_, next) => setTab(next)} sx={{ mb: 2 }}>
+                <Tab value="sessions" icon={<MeetingRoomRoundedIcon />} iconPosition="start" label="Сессии" />
+                <Tab value="history" icon={<HistoryRoundedIcon />} iconPosition="start" label="История" />
+                <Tab value="materials" icon={<LibraryBooksRoundedIcon />} iconPosition="start" label="Материалы" />
+              </Tabs>
+
+              {tab === 'sessions' ? (
+                <Stack spacing={1.5}>
+                  {sessions.map((session) => (
+                    <Paper
+                      key={session.id}
+                      sx={{
+                        p: { xs: 2, md: 2.25 },
+                        borderRadius: 2.5,
+                        bgcolor: '#ffffff',
+                        boxShadow: 'none',
+                      }}
+                    >
+                      <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="subtitle1">{session.title}</Typography>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.75 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(session.starts_at).toLocaleString('ru-RU')}
+                            </Typography>
+                            {session.template_key ? (
+                              <Chip
+                                size="small"
+                                label={
+                                  sessionTemplates.find((item) => item.key === session.template_key)?.name ??
+                                  session.template_key
+                                }
+                              />
+                            ) : null}
+                          </Stack>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
+                            {session.description || 'Описание сессии пока не добавлено.'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ flexShrink: 0 }}>
+                          <Button
+                            component={RouterLink}
+                            to={`/sessions/${session.id}`}
+                            variant="contained"
+                            size="medium"
+                            sx={{ minHeight: 36, px: 2 }}
+                          >
+                            Открыть
+                          </Button>
+                        </Box>
+                      </Stack>
+                    </Paper>
+                  ))}
+                  {selectedGroup && sessions.length === 0 ? <Alert severity="info">В этой группе пока нет сессий.</Alert> : null}
+                </Stack>
+              ) : null}
+
+              {tab === 'history' ? (
+                <Box sx={{ ...panelBorder, bgcolor: 'transparent', px: { xs: 2, md: 2.5 } }}>
+                  {history.map((item, index) => (
+                    <Box
+                      key={item.summary_id}
+                      sx={{
+                        py: 2,
+                        borderBottom: index === history.length - 1 ? 'none' : '1px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      <Typography variant="subtitle1">{item.session_title}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                        {new Date(item.session_date).toLocaleString('ru-RU')}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 1.25 }}>
+                        {item.short_description || 'Итоги сессии пока не заполнены.'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Участники: {item.participants.join(', ') || 'нет данных'}
+                      </Typography>
+                    </Box>
+                  ))}
+                  {selectedGroup && history.length === 0 ? <Alert severity="info" sx={{ my: 2 }}>История этой группы пока пуста.</Alert> : null}
+                </Box>
+              ) : null}
+
+              {tab === 'materials' && selectedGroup ? (
+                <Box sx={{ pt: 1 }}>
+                  <MaterialsPanel groupId={selectedGroup.id} />
+                </Box>
+              ) : null}
+            </Box>
+          </Stack>
+        </Box>
+
+        <Box component="aside" sx={{ minWidth: 0 }}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.08em' }}>
+                Каталог
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5 }}>
+                Найти группу
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                Доступные сообщества, в которые можно вступить.
+              </Typography>
+            </Box>
+
+            <Stack spacing={1.25}>
               {catalog.map((group) => {
                 const joined = groups.some((item) => item.id === group.id);
                 return (
-                  <Paper key={group.id} variant="outlined" sx={{ p: 1.5, borderRadius: 3.5 }}>
-                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
-                      <Box>
-                        <Typography fontWeight={800}>{group.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {group.description || 'Описание пока не добавлено.'}
-                        </Typography>
-                      </Box>
-                      <Button variant={joined ? 'outlined' : 'contained'} disabled={joined} onClick={() => void handleJoinGroup(group.id)}>
-                        {joined ? 'Вы уже в комнате' : 'Вступить'}
-                      </Button>
-                    </Stack>
+                  <Paper
+                    key={group.id}
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 2.5,
+                      bgcolor: '#ffffff',
+                      boxShadow: 'none',
+                    }}
+                  >
+                    <Typography variant="subtitle2">{group.name}</Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{
+                        mt: 0.75,
+                        display: '-webkit-box',
+                        overflow: 'hidden',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                      }}
+                    >
+                      {group.description || 'Описание пока не добавлено.'}
+                    </Typography>
+                    <Button
+                      variant={joined ? 'outlined' : 'contained'}
+                      disabled={joined}
+                      onClick={() => void handleJoinGroup(group.id)}
+                      size="small"
+                      sx={{ mt: 1.25, minHeight: 34, px: 1.5 }}
+                    >
+                      {joined ? 'Уже вступили' : 'Вступить'}
+                    </Button>
                   </Paper>
                 );
               })}
             </Stack>
-          </Paper>
-
-          <Paper sx={{ p: 2, borderRadius: 5, minHeight: 420 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
-              <Box>
-                <Typography variant="h5" fontWeight={900}>{selectedGroup?.name ?? 'Выберите комнату'}</Typography>
-                <Typography color="text.secondary">
-                  {selectedGroup?.description || 'Здесь будут сессии, история и материалы выбранной комнаты.'}
-                </Typography>
-              </Box>
-              {selectedGroup ? <Chip label={`Комната #${selectedGroup.id}`} /> : null}
-            </Stack>
-
-            <Tabs
-              value={tab}
-              onChange={(_, next) => setTab(next)}
-              sx={{ mt: 1.5, mb: 2 }}
-            >
-              <Tab value="sessions" icon={<MeetingRoomRoundedIcon />} iconPosition="start" label="Сессии" />
-              <Tab value="history" icon={<HistoryRoundedIcon />} iconPosition="start" label="История" />
-              <Tab value="materials" icon={<LibraryBooksRoundedIcon />} iconPosition="start" label="Материалы" />
-            </Tabs>
-
-            {tab === 'sessions' ? (
-              <Stack spacing={1.2}>
-                {sessions.map((session) => (
-                  <Paper key={session.id} variant="outlined" sx={{ p: 1.5, borderRadius: 3.5 }}>
-                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
-                      <Box>
-                        <Typography fontWeight={800}>{session.title}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {new Date(session.starts_at).toLocaleString('ru-RU')}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {session.description || 'Описание сессии пока не добавлено.'}
-                        </Typography>
-                      </Box>
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                        {session.template_key ? <Chip label={sessionTemplates.find((item) => item.key === session.template_key)?.name ?? session.template_key} /> : null}
-                        <Button component={RouterLink} to={`/sessions/${session.id}`} variant="contained">
-                          Открыть
-                        </Button>
-                      </Stack>
-                    </Stack>
-                  </Paper>
-                ))}
-                {selectedGroup && sessions.length === 0 ? <Alert severity="info">В этой комнате пока нет сессий.</Alert> : null}
-              </Stack>
-            ) : null}
-
-            {tab === 'history' ? (
-              <Stack spacing={1.2}>
-                {history.map((item) => (
-                  <Paper key={item.summary_id} variant="outlined" sx={{ p: 1.5, borderRadius: 3.5 }}>
-                    <Typography fontWeight={800}>{item.session_title}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {new Date(item.session_date).toLocaleString('ru-RU')}
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 0.75 }}>
-                      {item.short_description || 'Итоги сессии пока не заполнены.'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                      Участники: {item.participants.join(', ') || 'нет данных'}
-                    </Typography>
-                  </Paper>
-                ))}
-                {selectedGroup && history.length === 0 ? <Alert severity="info">История этой комнаты пока пуста.</Alert> : null}
-              </Stack>
-            ) : null}
-
-            {tab === 'materials' && selectedGroup ? <MaterialsPanel groupId={selectedGroup.id} /> : null}
-          </Paper>
-        </Stack>
-      </Stack>
+          </Stack>
+        </Box>
+      </Box>
 
       <Dialog open={groupDialogOpen} onClose={() => setGroupDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Создать комнату</DialogTitle>
+        <DialogTitle>Новая группа</DialogTitle>
         <DialogContent>
-          <Stack spacing={1.5} sx={{ pt: 1 }}>
-            <TextField label="Название комнаты" value={groupName} onChange={(event) => setGroupName(event.target.value)} fullWidth />
-            <TextField label="Описание" value={groupDescription} onChange={(event) => setGroupDescription(event.target.value)} multiline minRows={3} fullWidth />
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Название группы" value={groupName} onChange={(event) => setGroupName(event.target.value)} fullWidth />
+            <TextField label="Описание" value={groupDescription} onChange={(event) => setGroupDescription(event.target.value)} multiline minRows={4} fullWidth />
             <Button variant="contained" onClick={() => void handleCreateGroup()} disabled={!groupName.trim()}>
               Сохранить
             </Button>
@@ -326,22 +483,16 @@ export function GroupsPage() {
       </Dialog>
 
       <Dialog open={sessionDialogOpen} onClose={() => setSessionDialogOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>Создать учебную сессию</DialogTitle>
+        <DialogTitle>Новая учебная сессия</DialogTitle>
         <DialogContent>
-          <Stack spacing={1.5} sx={{ pt: 1 }}>
-            <TextField
-              select
-              label="Шаблон"
-              value={templateKey}
-              onChange={(event) => setTemplateKey(event.target.value)}
-              fullWidth
-            >
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField select label="Шаблон" value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} fullWidth>
               {sessionTemplates.map((template) => (
                 <MenuItem key={template.key} value={template.key}>{template.name}</MenuItem>
               ))}
             </TextField>
             <TextField label="Название сессии" value={sessionTitle} onChange={(event) => setSessionTitle(event.target.value)} fullWidth />
-            <TextField label="Описание" value={sessionDescription} onChange={(event) => setSessionDescription(event.target.value)} multiline minRows={3} fullWidth />
+            <TextField label="Описание" value={sessionDescription} onChange={(event) => setSessionDescription(event.target.value)} multiline minRows={4} fullWidth />
             <TextField
               label="Начало"
               type="datetime-local"

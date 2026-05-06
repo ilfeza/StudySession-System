@@ -1,6 +1,5 @@
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import { Box, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { Alert, Box, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api/client';
@@ -66,34 +65,36 @@ export function ChatPanel({ sessionId, variant = 'default' }: Props) {
   return (
     <Paper
       sx={{
-        p: isSessionVariant ? 2.5 : 2,
+        p: isSessionVariant ? 0 : 3,
         height: isSessionVariant ? '100%' : 420,
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: 1.5,
-        borderRadius: isSessionVariant ? 4 : undefined,
-        background: isSessionVariant ? alpha('#08111f', 0.9) : undefined,
-        color: isSessionVariant ? '#f8fbff' : undefined,
-        border: isSessionVariant ? `1px solid ${alpha('#ffffff', 0.08)}` : undefined,
-        boxShadow: isSessionVariant ? '0 24px 60px rgba(0, 0, 0, 0.35)' : undefined,
-        backdropFilter: isSessionVariant ? 'blur(16px)' : undefined,
+        borderRadius: 0,
+        border: 'none',
+        boxShadow: 'none',
+        backgroundColor: 'transparent',
       }}
     >
-      <Typography variant="h6" fontWeight={800}>
-        {isSessionVariant ? 'Чат встречи' : 'Чат сессии'}
-      </Typography>
-      {error && <Typography color={isSessionVariant ? '#ffb4b4' : 'error'}>{error}</Typography>}
+      <Stack spacing={0.5}>
+        <Typography variant="h6">{isSessionVariant ? 'Чат встречи' : 'Чат сессии'}</Typography>
+        <Typography variant="body2" color="text.secondary">
+          Короткие сообщения команды в одном потоке.
+        </Typography>
+      </Stack>
+      {error ? <Alert severity="warning">{error}</Alert> : null}
       <Box
         ref={listRef}
         sx={{
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
-          border: isSessionVariant ? `1px solid ${alpha('#ffffff', 0.06)}` : '1px solid #e8edf6',
+          border: '1px solid',
+          borderColor: 'divider',
           borderRadius: 3,
-          p: 1,
-          background: isSessionVariant ? alpha('#0f1b31', 0.72) : undefined,
+          p: 1.5,
+          backgroundColor: '#f9fafb',
         }}
       >
         <Stack spacing={1}>
@@ -101,54 +102,33 @@ export function ChatPanel({ sessionId, variant = 'default' }: Props) {
             <Box
               key={msg.id}
               sx={{
-                p: 1.25,
-                backgroundColor: isSessionVariant ? alpha('#162744', 0.92) : '#f5f8ff',
+                p: 1.5,
                 borderRadius: 2,
+                backgroundColor: '#ffffff',
+                border: '1px solid',
+                borderColor: 'divider',
               }}
             >
-              <Typography variant="caption" fontWeight={700} color={isSessionVariant ? '#8fb8ff' : undefined}>
+              <Typography variant="caption" fontWeight={700} color="text.secondary">
                 {msg.sender_name}
               </Typography>
-              <Typography variant="body2">{msg.message}</Typography>
+              <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                {msg.message}
+              </Typography>
             </Box>
           ))}
         </Stack>
       </Box>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row" spacing={1} alignItems="flex-end">
         <TextField
           fullWidth
-          label="Написать сообщение"
+          label="Сообщение"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          sx={isSessionVariant ? {
-            '& .MuiOutlinedInput-root': {
-              color: '#f8fbff',
-              borderRadius: 3,
-              backgroundColor: alpha('#ffffff', 0.03),
-            },
-            '& .MuiOutlinedInput-notchedOutline': {
-              borderColor: alpha('#ffffff', 0.12),
-            },
-            '& .MuiInputLabel-root': {
-              color: alpha('#f8fbff', 0.7),
-            },
-          } : undefined}
+          multiline
+          maxRows={4}
         />
-        <IconButton
-          color="primary"
-          onClick={send}
-          sx={isSessionVariant ? {
-            alignSelf: 'center',
-            width: 48,
-            height: 48,
-            borderRadius: 2.5,
-            background: 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)',
-            color: '#ffffff',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #4a93ff 0%, #2f78ff 100%)',
-            },
-          } : undefined}
-        >
+        <IconButton color="primary" onClick={send} sx={{ width: 44, height: 44, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
           <SendRoundedIcon />
         </IconButton>
       </Stack>

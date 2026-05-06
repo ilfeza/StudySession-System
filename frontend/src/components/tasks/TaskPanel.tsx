@@ -1,13 +1,10 @@
 import AddTaskRoundedIcon from '@mui/icons-material/AddTaskRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import EventBusyRoundedIcon from '@mui/icons-material/EventBusyRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
-import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import {
   Alert,
   Box,
@@ -23,13 +20,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import { useEffect, useMemo, useState } from 'react';
 
 import { generateAiTasks } from '../../api/ai';
 import type { AiTaskSuggestion, ChatMessage, SessionTask, SessionTaskStatus } from '../../types';
-import { useSessionTasks } from './useSessionTasks';
 import { TaskCreateForm } from './TaskCreateForm';
+import { useSessionTasks } from './useSessionTasks';
 
 const statusLabels: Record<SessionTaskStatus, string> = {
   todo: 'To do',
@@ -40,31 +36,11 @@ const statusLabels: Record<SessionTaskStatus, string> = {
 const columnConfig: Array<{
   status: SessionTaskStatus;
   title: string;
-  accent: string;
-  background: string;
   description: string;
 }> = [
-  {
-    status: 'todo',
-    title: 'To do',
-    accent: '#94a3b8',
-    background: 'linear-gradient(180deg, rgba(148, 163, 184, 0.18) 0%, rgba(15, 23, 42, 0.38) 100%)',
-    description: 'Идеи и новые задачи',
-  },
-  {
-    status: 'in_progress',
-    title: 'In progress',
-    accent: '#60a5fa',
-    background: 'linear-gradient(180deg, rgba(51, 132, 255, 0.22) 0%, rgba(9, 20, 38, 0.38) 100%)',
-    description: 'То, над чем команда работает',
-  },
-  {
-    status: 'done',
-    title: 'Done',
-    accent: '#4ade80',
-    background: 'linear-gradient(180deg, rgba(34, 197, 94, 0.2) 0%, rgba(8, 24, 20, 0.34) 100%)',
-    description: 'Готовые карточки встречи',
-  },
+  { status: 'todo', title: 'To do', description: 'Новые и ожидающие задачи' },
+  { status: 'in_progress', title: 'In progress', description: 'Активная работа команды' },
+  { status: 'done', title: 'Done', description: 'Завершенные карточки' },
 ];
 
 function toInputDateTime(value?: string | null) {
@@ -88,25 +64,6 @@ function isOverdue(value?: string | null) {
   return Boolean(value && new Date(value).getTime() < Date.now());
 }
 
-function isDueToday(value?: string | null) {
-  if (!value) {
-    return false;
-  }
-  const date = new Date(value);
-  const now = new Date();
-  return date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate();
-}
-
-function getInitials(name?: string | null) {
-  if (!name) {
-    return '??';
-  }
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || '??';
-}
-
 interface EditableAiTask extends AiTaskSuggestion {
   localId: string;
 }
@@ -128,7 +85,6 @@ function resolveAssigneeId(participants: ReturnType<typeof useSessionTasks>['par
 
 function TaskCard({
   task,
-  accent,
   participants,
   dragging,
   onDragStart,
@@ -137,7 +93,6 @@ function TaskCard({
   onRemove,
 }: {
   task: SessionTask;
-  accent: string;
   participants: ReturnType<typeof useSessionTasks>['participants'];
   dragging: boolean;
   onDragStart: (taskId: number) => void;
@@ -146,7 +101,6 @@ function TaskCard({
   onRemove: (taskId: number) => void;
 }) {
   const overdue = isOverdue(task.deadline) && task.status !== 'done';
-  const dueToday = isDueToday(task.deadline) && task.status !== 'done';
 
   return (
     <Paper
@@ -154,113 +108,40 @@ function TaskCard({
       onDragStart={() => onDragStart(task.id)}
       onDragEnd={onDragEnd}
       sx={{
-        p: 1.5,
-        borderRadius: 3.5,
+        p: 2,
+        borderRadius: 3,
         cursor: 'grab',
-        opacity: dragging ? 0.5 : 1,
-        transform: dragging ? 'scale(0.98)' : 'translateY(0)',
-        transition: 'transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease',
-        background: overdue
-          ? 'linear-gradient(180deg, rgba(70, 21, 28, 0.98) 0%, rgba(28, 11, 17, 0.98) 100%)'
-          : 'linear-gradient(180deg, rgba(22, 39, 68, 0.98) 0%, rgba(10, 18, 32, 0.96) 100%)',
-        border: `1px solid ${alpha(overdue ? '#fb7185' : accent, 0.35)}`,
-        boxShadow: `0 18px 34px ${alpha('#000000', 0.28)}`,
-        '&:hover': {
-          transform: dragging ? 'scale(0.98)' : 'translateY(-2px)',
-          boxShadow: `0 22px 42px ${alpha('#000000', 0.34)}`,
-        },
+        opacity: dragging ? 0.55 : 1,
+        transition: 'opacity 140ms ease, border-color 140ms ease, box-shadow 140ms ease',
+        borderColor: overdue ? '#fecaca' : '#e5e7eb',
+        boxShadow: dragging ? '0 10px 30px rgba(15, 23, 42, 0.12)' : '0 1px 2px rgba(15, 23, 42, 0.04)',
       }}
     >
-      <Stack spacing={1.2}>
+      <Stack spacing={1.5}>
         <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
-          <Stack direction="row" spacing={1} sx={{ minWidth: 0, flex: 1 }}>
-            <Box
-              sx={{
-                width: 34,
-                height: 34,
-                flexShrink: 0,
-                display: 'grid',
-                placeItems: 'center',
-                borderRadius: 2.5,
-                color: '#ffffff',
-                background: alpha(accent, 0.2),
-                border: `1px solid ${alpha(accent, 0.28)}`,
-              }}
-            >
-              <DragIndicatorRoundedIcon fontSize="small" />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography fontWeight={800} sx={{ color: '#ffffff' }}>
-                {task.title}
-              </Typography>
-              <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.62) }}>
-                {task.created_by?.full_name ? `Создал: ${task.created_by.full_name}` : 'Автор задачи'}
-              </Typography>
-            </Box>
-          </Stack>
-
-          <IconButton onClick={() => onRemove(task.id)} sx={{ color: '#ffb4b4', mt: -0.5, mr: -0.5 }}>
-            <DeleteOutlineRoundedIcon />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle2">{task.title}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {task.created_by?.full_name ? `Создал: ${task.created_by.full_name}` : 'Автор задачи'}
+            </Typography>
+          </Box>
+          <IconButton onClick={() => onRemove(task.id)} size="small">
+            <DeleteOutlineRoundedIcon fontSize="small" />
           </IconButton>
         </Stack>
 
-        <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.78) }}>
+        <Typography variant="body2" color="text.secondary">
           {task.description || 'Описание пока не добавлено.'}
         </Typography>
 
         <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
-          <Chip
-            label={statusLabels[task.status]}
-            size="small"
-            sx={{
-              color: '#ffffff',
-              backgroundColor: alpha(accent, 0.22),
-              border: `1px solid ${alpha(accent, 0.28)}`,
-            }}
-          />
-          <Chip
-            icon={<PersonRoundedIcon />}
-            label={task.assignee?.full_name ?? 'Без исполнителя'}
-            size="small"
-            sx={{
-              color: alpha('#ffffff', 0.9),
-              backgroundColor: alpha('#ffffff', 0.08),
-            }}
-          />
-          {overdue ? (
-            <Chip
-              icon={<EventBusyRoundedIcon />}
-              label="Просрочено"
-              size="small"
-              sx={{
-                color: '#ffe1e6',
-                backgroundColor: alpha('#fb7185', 0.18),
-                border: `1px solid ${alpha('#fb7185', 0.28)}`,
-              }}
-            />
-          ) : null}
-          {!overdue && dueToday ? (
-            <Chip
-              icon={<ScheduleRoundedIcon />}
-              label="Сегодня"
-              size="small"
-              sx={{
-                color: '#fff7d1',
-                backgroundColor: alpha('#facc15', 0.16),
-                border: `1px solid ${alpha('#facc15', 0.26)}`,
-              }}
-            />
-          ) : null}
+          <Chip size="small" label={statusLabels[task.status]} />
+          <Chip size="small" icon={<PersonRoundedIcon />} label={task.assignee?.full_name ?? 'Без исполнителя'} />
+          {overdue ? <Chip size="small" icon={<EventBusyRoundedIcon />} label="Просрочено" color="error" /> : null}
         </Stack>
 
         <Stack spacing={1}>
-          <TextField
-            select
-            size="small"
-            label="Статус"
-            value={task.status}
-            onChange={(event) => onPatch(task.id, { status: event.target.value as SessionTaskStatus })}
-          >
+          <TextField select size="small" label="Статус" value={task.status} onChange={(event) => onPatch(task.id, { status: event.target.value as SessionTaskStatus })}>
             <MenuItem value="todo">To do</MenuItem>
             <MenuItem value="in_progress">In progress</MenuItem>
             <MenuItem value="done">Done</MenuItem>
@@ -271,9 +152,7 @@ function TaskCard({
             size="small"
             label="Исполнитель"
             value={task.assignee_id ? String(task.assignee_id) : ''}
-            onChange={(event) => onPatch(task.id, {
-              assignee_id: event.target.value ? Number(event.target.value) : null,
-            })}
+            onChange={(event) => onPatch(task.id, { assignee_id: event.target.value ? Number(event.target.value) : null })}
           >
             <MenuItem value="">Без исполнителя</MenuItem>
             {participants.map((participant) => (
@@ -293,27 +172,9 @@ function TaskCard({
           />
         </Stack>
 
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-          <Typography variant="caption" sx={{ color: overdue ? '#ffd0d8' : alpha('#ffffff', 0.62) }}>
-            {formatDeadline(task.deadline)}
-          </Typography>
-          <Box
-            sx={{
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
-              display: 'grid',
-              placeItems: 'center',
-              color: '#ffffff',
-              fontSize: '0.72rem',
-              fontWeight: 800,
-              background: alpha('#ffffff', 0.12),
-              border: `1px solid ${alpha('#ffffff', 0.08)}`,
-            }}
-          >
-            {getInitials(task.assignee?.full_name)}
-          </Box>
-        </Stack>
+        <Typography variant="caption" color={overdue ? 'error.main' : 'text.secondary'}>
+          {formatDeadline(task.deadline)}
+        </Typography>
       </Stack>
     </Paper>
   );
@@ -386,7 +247,6 @@ export function TaskPanel({
     const inWork = tasks.filter((task) => task.status === 'in_progress').length;
     const done = tasks.filter((task) => task.status === 'done').length;
     const completion = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
-
     return { overdue, inWork, done, completion };
   }, [tasks]);
 
@@ -476,206 +336,90 @@ export function TaskPanel({
     <>
       <Paper
         sx={{
-          p: { xs: 1.5, md: fullscreen ? 2.5 : 2.25 },
+          p: { xs: 2, md: fullscreen ? 3 : 2.5 },
           height: '100%',
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          gap: 1.5,
-          borderRadius: fullscreen ? 5 : 4,
-          background: fullscreen
-            ? 'linear-gradient(180deg, rgba(7, 13, 24, 0.98) 0%, rgba(4, 8, 15, 0.98) 100%)'
-            : alpha('#08111f', 0.9),
-          color: '#f8fbff',
-          border: `1px solid ${alpha('#ffffff', 0.08)}`,
-          boxShadow: fullscreen ? '0 32px 80px rgba(0, 0, 0, 0.42)' : '0 24px 60px rgba(0, 0, 0, 0.35)',
-          backdropFilter: 'blur(16px)',
+          gap: 2,
+          borderRadius: 3,
+          backgroundColor: '#ffffff',
         }}
       >
-        <Stack
-          direction={{ xs: 'column', lg: 'row' }}
-          spacing={1.5}
-          alignItems={{ xs: 'stretch', lg: 'center' }}
-          justifyContent="space-between"
-        >
-          <Stack spacing={0.35}>
-            <Typography variant="h5" fontWeight={900}>
-              Канбан-доска
+        <Stack direction={{ xs: 'column', xl: 'row' }} justifyContent="space-between" spacing={2}>
+          <Box>
+            <Typography variant="h5">Kanban-доска</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+              Главный фокус на колонках и карточках. Аналитика и фильтры вынесены в компактный верхний блок.
             </Typography>
-            <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.7) }}>
-              Полноэкранная рабочая доска видеосессии с перетаскиванием карточек мышкой между колонками.
-            </Typography>
-          </Stack>
-
+          </Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <Button
-              variant="outlined"
-              startIcon={<AutoAwesomeRoundedIcon />}
-              onClick={() => void handleOpenAiDialog()}
-              sx={{
-                alignSelf: { xs: 'stretch', lg: 'center' },
-                borderRadius: 999,
-                px: 2.2,
-                py: 1.1,
-                fontWeight: 900,
-                textTransform: 'none',
-                color: '#ffffff',
-                borderColor: alpha('#ffffff', 0.2),
-                background: alpha('#ffffff', 0.04),
-              }}
-            >
-              Сгенерировать задачи
+            <Button variant="outlined" startIcon={<AutoAwesomeRoundedIcon />} onClick={() => void handleOpenAiDialog()}>
+              AI-задачи
             </Button>
-
-            <Button
-              variant="contained"
-              startIcon={<AddTaskRoundedIcon />}
-              onClick={() => setCreateOpen(true)}
-              sx={{
-                alignSelf: { xs: 'stretch', lg: 'center' },
-                borderRadius: 999,
-                px: 2.2,
-                py: 1.1,
-                fontWeight: 900,
-                textTransform: 'none',
-                background: 'linear-gradient(135deg, #38bdf8 0%, #22c55e 100%)',
-                color: '#04111d',
-              }}
-            >
-              Создать задачу
+            <Button variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={() => setCreateOpen(true)}>
+              Новая задача
             </Button>
           </Stack>
         </Stack>
-
-        <Stack direction={{ xs: 'column', xl: 'row' }} spacing={1.2}>
-          <Paper
-            sx={{
-              p: 1.2,
-              borderRadius: 4,
-              minWidth: { xl: 220 },
-              background: alpha('#ffffff', 0.04),
-              border: `1px solid ${alpha('#ffffff', 0.08)}`,
-            }}
-          >
-            <Stack spacing={0.4}>
-              <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.58) }}>
-                Готовность
-              </Typography>
-              <Typography variant="h4" fontWeight={900} color="#ffffff">
-                {stats.completion}%
-              </Typography>
-              <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.68) }}>
-                {stats.done} из {tasks.length} задач закрыты
-              </Typography>
-            </Stack>
-          </Paper>
-
-          <Paper
-            sx={{
-              p: 1.2,
-              borderRadius: 4,
-              minWidth: { xl: 220 },
-              background: alpha('#60a5fa', 0.08),
-              border: `1px solid ${alpha('#60a5fa', 0.16)}`,
-            }}
-          >
-            <Stack spacing={0.4}>
-              <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.58) }}>
-                В работе
-              </Typography>
-              <Stack direction="row" spacing={0.7} alignItems="center">
-                <TrendingUpRoundedIcon sx={{ color: '#8cc7ff' }} />
-                <Typography variant="h5" fontWeight={900} color="#ffffff">
-                  {stats.inWork}
-                </Typography>
-              </Stack>
-            </Stack>
-          </Paper>
-
-          <Paper
-            sx={{
-              p: 1.2,
-              borderRadius: 4,
-              minWidth: { xl: 220 },
-              background: alpha('#fb7185', 0.08),
-              border: `1px solid ${alpha('#fb7185', 0.16)}`,
-            }}
-          >
-            <Stack spacing={0.4}>
-              <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.58) }}>
-                Просрочено
-              </Typography>
-              <Stack direction="row" spacing={0.7} alignItems="center">
-                <EventBusyRoundedIcon sx={{ color: '#ff9caf' }} />
-                <Typography variant="h5" fontWeight={900} color="#ffffff">
-                  {stats.overdue}
-                </Typography>
-              </Stack>
-            </Stack>
-          </Paper>
-
-          <TextField
-            placeholder="Поиск по карточкам"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            InputProps={{
-              startAdornment: <SearchRoundedIcon sx={{ color: alpha('#ffffff', 0.5), mr: 1 }} />,
-            }}
-            sx={{
-              flex: 1,
-              minWidth: { xl: 260 },
-            }}
-          />
-
-          <TextField
-            select
-            label="Фильтр"
-            value={assigneeFilter}
-            onChange={(event) => setAssigneeFilter(event.target.value as 'all' | 'unassigned' | `${number}`)}
-            sx={{ minWidth: { xs: '100%', sm: 240 } }}
-          >
-            <MenuItem value="all">Все карточки</MenuItem>
-            <MenuItem value="unassigned">Без исполнителя</MenuItem>
-            {participants.map((participant) => (
-              <MenuItem key={participant.id} value={String(participant.id) as `${number}`}>
-                {participant.full_name}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Stack>
-
-        {error ? <Alert severity="warning" sx={{ borderRadius: 3 }}>{error}</Alert> : null}
-        {!loading && tasks.length === 0 ? (
-          <Alert severity="info" sx={{ borderRadius: 3 }}>
-            В сессии пока нет задач. Добавьте первую карточку, чтобы зафиксировать план работы.
-          </Alert>
-        ) : null}
 
         <Box
           sx={{
-            flex: 1,
-            minHeight: 0,
-            overflowX: 'auto',
-            overflowY: 'hidden',
+            display: 'grid',
+            gap: 1.5,
+            gridTemplateColumns: { xs: '1fr', lg: 'repeat(4, minmax(0, 1fr))' },
           }}
         >
+          <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
+            <Typography variant="caption" color="text.secondary">Готовность</Typography>
+            <Typography variant="h4" sx={{ mt: 0.5 }}>{stats.completion}%</Typography>
+            <Typography variant="body2" color="text.secondary">{stats.done} из {tasks.length} завершено</Typography>
+          </Paper>
+          <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
+            <Typography variant="caption" color="text.secondary">В работе</Typography>
+            <Typography variant="h4" sx={{ mt: 0.5 }}>{stats.inWork}</Typography>
+            <Typography variant="body2" color="text.secondary">Карточки, над которыми сейчас работают</Typography>
+          </Paper>
+          <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
+            <Typography variant="caption" color="text.secondary">Просрочено</Typography>
+            <Typography variant="h4" sx={{ mt: 0.5 }}>{stats.overdue}</Typography>
+            <Typography variant="body2" color="text.secondary">Задачи, требующие внимания</Typography>
+          </Paper>
+          <Stack spacing={1.25}>
+            <TextField
+              size="small"
+              placeholder="Поиск по карточкам"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              InputProps={{ startAdornment: <SearchRoundedIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> }}
+            />
+            <TextField select size="small" label="Фильтр по исполнителю" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value as 'all' | 'unassigned' | `${number}`)}>
+              <MenuItem value="all">Все карточки</MenuItem>
+              <MenuItem value="unassigned">Без исполнителя</MenuItem>
+              {participants.map((participant) => (
+                <MenuItem key={participant.id} value={String(participant.id) as `${number}`}>
+                  {participant.full_name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </Box>
+
+        {error ? <Alert severity="warning">{error}</Alert> : null}
+        {!loading && tasks.length === 0 ? <Alert severity="info">В сессии пока нет задач. Добавьте первую карточку, чтобы зафиксировать план работы.</Alert> : null}
+
+        <Box sx={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'hidden' }}>
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: {
-                xs: 'repeat(3, minmax(360px, 1fr))',
-                xl: 'repeat(3, minmax(0, 1fr))',
-              },
+              gridTemplateColumns: { xs: 'repeat(3, minmax(280px, 1fr))', xl: 'repeat(3, minmax(0, 1fr))' },
               gap: 1.5,
-              minWidth: { xs: 1140, xl: 'auto' },
+              minWidth: { xs: 900, xl: 'auto' },
               height: '100%',
             }}
           >
             {columnConfig.map((column) => {
               const columnTasks = tasksByStatus[column.status];
-              const allColumnTasks = tasks.filter((task) => task.status === column.status);
-              const overdueCount = allColumnTasks.filter((task) => isOverdue(task.deadline) && task.status !== 'done').length;
-
               return (
                 <Paper
                   key={column.status}
@@ -686,101 +430,30 @@ export function TaskPanel({
                   onDragLeave={() => setDropStatus((prev) => (prev === column.status ? null : prev))}
                   onDrop={() => void handleDrop(column.status)}
                   sx={{
-                    p: 1.2,
-                    borderRadius: 4.5,
+                    p: 1.5,
+                    borderRadius: 3,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 1,
+                    gap: 1.25,
                     minHeight: 0,
-                    height: '100%',
-                    background: column.background,
-                    border: `1px solid ${alpha(column.accent, dropStatus === column.status ? 0.55 : 0.28)}`,
-                    boxShadow: dropStatus === column.status
-                      ? `0 0 0 1px ${alpha(column.accent, 0.28)} inset`
-                      : 'none',
-                    transition: 'border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease',
-                    transform: dropStatus === column.status ? 'scale(1.003)' : 'none',
+                    backgroundColor: dropStatus === column.status ? '#f9fafb' : '#fcfcfd',
+                    borderColor: dropStatus === column.status ? '#9ca3af' : '#e5e7eb',
                   }}
                 >
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    sx={{
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 1,
-                      py: 0.3,
-                      background: alpha('#09111d', 0.42),
-                      backdropFilter: 'blur(10px)',
-                      borderRadius: 3,
-                    }}
-                  >
+                  <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center">
                     <Box>
-                      <Typography fontWeight={900} sx={{ color: '#ffffff' }}>
-                        {column.title}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.66) }}>
-                        {column.description}
-                      </Typography>
+                      <Typography variant="subtitle1">{column.title}</Typography>
+                      <Typography variant="caption" color="text.secondary">{column.description}</Typography>
                     </Box>
-
-                    <Stack direction="row" spacing={0.75}>
-                      {overdueCount > 0 ? (
-                        <Chip
-                          label={`Просрочено ${overdueCount}`}
-                          size="small"
-                          sx={{
-                            color: '#ffe3e8',
-                            backgroundColor: alpha('#fb7185', 0.18),
-                            border: `1px solid ${alpha('#fb7185', 0.28)}`,
-                          }}
-                        />
-                      ) : null}
-                      <Chip
-                        label={columnTasks.length}
-                        size="small"
-                        sx={{
-                          color: '#ffffff',
-                          fontWeight: 800,
-                          backgroundColor: alpha(column.accent, 0.24),
-                          border: `1px solid ${alpha(column.accent, 0.32)}`,
-                        }}
-                      />
-                    </Stack>
+                    <Chip size="small" label={columnTasks.length} />
                   </Stack>
 
-                  <Box
-                    sx={{
-                      flex: 1,
-                      minHeight: 0,
-                      overflowY: 'auto',
-                      pr: 0.25,
-                      borderRadius: 3.5,
-                    }}
-                  >
-                    <Stack spacing={1.1}>
-                      {dropStatus === column.status && draggedTaskId !== null ? (
-                        <Paper
-                          sx={{
-                            p: 1.15,
-                            borderRadius: 3,
-                            textAlign: 'center',
-                            background: alpha(column.accent, 0.12),
-                            border: `1px dashed ${alpha(column.accent, 0.4)}`,
-                          }}
-                        >
-                          <Typography variant="body2" sx={{ color: '#ffffff', fontWeight: 700 }}>
-                            Отпустите карточку, чтобы переместить сюда
-                          </Typography>
-                        </Paper>
-                      ) : null}
-
+                  <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', pr: 0.25 }}>
+                    <Stack spacing={1.25}>
                       {columnTasks.map((task) => (
                         <TaskCard
                           key={task.id}
                           task={task}
-                          accent={column.accent}
                           participants={participants}
                           dragging={draggedTaskId === task.id}
                           onDragStart={setDraggedTaskId}
@@ -792,22 +465,10 @@ export function TaskPanel({
                           onRemove={(taskId) => void removeTask(taskId)}
                         />
                       ))}
-
                       {!loading && columnTasks.length === 0 ? (
-                        <Paper
-                          sx={{
-                            p: 2,
-                            borderRadius: 3.5,
-                            textAlign: 'center',
-                            background: alpha('#ffffff', 0.04),
-                            border: `1px dashed ${alpha('#ffffff', 0.14)}`,
-                          }}
-                        >
-                          <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.68) }}>
+                        <Paper sx={{ p: 2, borderRadius: 3, textAlign: 'center', bgcolor: '#f9fafb' }}>
+                          <Typography variant="body2" color="text.secondary">
                             Здесь пока пусто
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.5) }}>
-                            Перетащите карточку сюда или создайте новую
                           </Typography>
                         </Paper>
                       ) : null}
@@ -820,32 +481,10 @@ export function TaskPanel({
         </Box>
       </Paper>
 
-      <Dialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        fullWidth
-        maxWidth="sm"
-        PaperProps={{
-          sx: {
-            borderRadius: 5,
-            background: 'linear-gradient(180deg, rgba(10, 18, 32, 0.98) 0%, rgba(6, 11, 20, 0.98) 100%)',
-            color: '#f8fbff',
-            border: `1px solid ${alpha('#ffffff', 0.08)}`,
-            boxShadow: '0 32px 80px rgba(0, 0, 0, 0.45)',
-          },
-        }}
-      >
-        <DialogTitle sx={{ pb: 1, fontWeight: 900 }}>
-          Создать задачу
-        </DialogTitle>
-        <DialogContent sx={{ pb: 3 }}>
-          <TaskCreateForm
-            participants={participants}
-            disabled={loading}
-            submitLabel="Сохранить задачу"
-            onSubmitted={() => setCreateOpen(false)}
-            onSubmit={createTask}
-          />
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Создать задачу</DialogTitle>
+        <DialogContent>
+          <TaskCreateForm participants={participants} disabled={loading} submitLabel="Сохранить задачу" onSubmitted={() => setCreateOpen(false)} onSubmit={createTask} />
         </DialogContent>
       </Dialog>
 
@@ -858,115 +497,42 @@ export function TaskPanel({
         }}
         fullWidth
         maxWidth="md"
-        PaperProps={{
-          sx: {
-            borderRadius: 5,
-            background: 'linear-gradient(180deg, rgba(10, 18, 32, 0.98) 0%, rgba(6, 11, 20, 0.98) 100%)',
-            color: '#f8fbff',
-            border: `1px solid ${alpha('#ffffff', 0.08)}`,
-            boxShadow: '0 32px 80px rgba(0, 0, 0, 0.45)',
-          },
-        }}
       >
-        <DialogTitle sx={{ pb: 1, fontWeight: 900 }}>
-          AI-генерация задач
-        </DialogTitle>
-        <DialogContent sx={{ pb: 3 }}>
-          <Stack spacing={1.5}>
-            <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72) }}>
-              Контекст берётся из чата, названия комнаты и описания сессии. Перед сохранением список можно отредактировать.
+        <DialogTitle>AI-генерация задач</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Контекст берется из чата, названия комнаты и описания сессии. Перед сохранением список можно отредактировать.
             </Typography>
-
-            {aiError ? <Alert severity="warning" sx={{ borderRadius: 3 }}>{aiError}</Alert> : null}
-
+            {aiError ? <Alert severity="warning">{aiError}</Alert> : null}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button
-                variant="outlined"
-                startIcon={<RefreshRoundedIcon />}
-                onClick={() => void requestAiTasks()}
-                disabled={aiLoading || aiSaving}
-                sx={{ borderRadius: 999, color: '#ffffff', borderColor: alpha('#ffffff', 0.18) }}
-              >
+              <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void requestAiTasks()} disabled={aiLoading || aiSaving}>
                 Сгенерировать заново
               </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddTaskRoundedIcon />}
-                onClick={() => void handleConfirmAiTasks()}
-                disabled={aiLoading || aiSaving || aiTasks.length === 0}
-                sx={{
-                  borderRadius: 999,
-                  fontWeight: 900,
-                  textTransform: 'none',
-                  color: '#08111f',
-                  background: 'linear-gradient(135deg, #7dd3fc 0%, #a7f3d0 100%)',
-                }}
-              >
+              <Button variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={() => void handleConfirmAiTasks()} disabled={aiLoading || aiSaving || aiTasks.length === 0}>
                 Подтвердить и сохранить
               </Button>
             </Stack>
 
-            {aiLoading ? (
-              <Alert severity="info" sx={{ borderRadius: 3 }}>
-                AI анализирует обсуждение и подбирает задачи...
-              </Alert>
-            ) : null}
-
-            {!aiLoading && aiTasks.length === 0 && !aiError ? (
-              <Alert severity="info" sx={{ borderRadius: 3 }}>
-                AI пока не предложил задачи. Попробуйте ещё раз или добавьте больше сообщений в чат.
-              </Alert>
-            ) : null}
+            {aiLoading ? <Alert severity="info">AI анализирует обсуждение и подбирает задачи...</Alert> : null}
+            {!aiLoading && aiTasks.length === 0 && !aiError ? <Alert severity="info">AI пока не предложил задачи.</Alert> : null}
 
             <Stack spacing={1.25}>
               {aiTasks.map((task) => (
-                <Paper
-                  key={task.localId}
-                  sx={{
-                    p: 1.25,
-                    borderRadius: 3.5,
-                    background: alpha('#ffffff', 0.04),
-                    border: `1px solid ${alpha('#ffffff', 0.08)}`,
-                  }}
-                >
-                  <Stack spacing={1}>
-                    <Stack direction="row" justifyContent="space-between" spacing={1}>
-                      <Typography fontWeight={800}>
-                        Предложенная задача
-                      </Typography>
-                      <IconButton
-                        onClick={() => setAiTasks((prev) => prev.filter((item) => item.localId !== task.localId))}
-                        disabled={aiSaving}
-                        sx={{ color: '#ffb4b4', mt: -0.5, mr: -0.5 }}
-                      >
-                        <DeleteOutlineRoundedIcon />
+                <Paper key={task.localId} sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center">
+                      <Typography variant="subtitle2">Предложенная задача</Typography>
+                      <IconButton onClick={() => setAiTasks((prev) => prev.filter((item) => item.localId !== task.localId))} disabled={aiSaving} size="small">
+                        <DeleteOutlineRoundedIcon fontSize="small" />
                       </IconButton>
                     </Stack>
-
-                    <TextField
-                      label="Название задачи"
-                      value={task.title}
-                      onChange={(event) => setAiTasks((prev) => prev.map((item) => (
-                        item.localId === task.localId ? { ...item, title: event.target.value } : item
-                      )))}
-                      disabled={aiSaving}
-                    />
-                    <TextField
-                      label="Описание"
-                      value={task.description}
-                      onChange={(event) => setAiTasks((prev) => prev.map((item) => (
-                        item.localId === task.localId ? { ...item, description: event.target.value } : item
-                      )))}
-                      disabled={aiSaving}
-                      multiline
-                      minRows={3}
-                    />
+                    <TextField label="Название задачи" value={task.title} onChange={(event) => setAiTasks((prev) => prev.map((item) => (item.localId === task.localId ? { ...item, title: event.target.value } : item)))} disabled={aiSaving} />
+                    <TextField label="Описание" value={task.description} onChange={(event) => setAiTasks((prev) => prev.map((item) => (item.localId === task.localId ? { ...item, description: event.target.value } : item)))} disabled={aiSaving} multiline minRows={3} />
                     <TextField
                       label="Предполагаемый исполнитель"
                       value={task.assignee ?? ''}
-                      onChange={(event) => setAiTasks((prev) => prev.map((item) => (
-                        item.localId === task.localId ? { ...item, assignee: event.target.value } : item
-                      )))}
+                      onChange={(event) => setAiTasks((prev) => prev.map((item) => (item.localId === task.localId ? { ...item, assignee: event.target.value } : item)))}
                       disabled={aiSaving}
                       helperText="Если имя совпадает с участником сессии, исполнитель подставится автоматически."
                     />

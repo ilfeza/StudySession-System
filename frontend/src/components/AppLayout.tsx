@@ -1,4 +1,3 @@
-﻿import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import {
@@ -14,10 +13,17 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
+
+const navigationItems = [
+  { to: '/dashboard', label: 'Дашборд' },
+  { to: '/groups', label: 'Группы' },
+  { to: '/history', label: 'История' },
+  { to: '/profile', label: 'Профиль' },
+];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
@@ -27,47 +33,86 @@ export function AppLayout() {
   const location = useLocation();
   const isSessionRoute = location.pathname.startsWith('/sessions/');
 
-  const nav = (
-    <Stack direction={isMobile ? 'column' : 'row'} spacing={2} alignItems={isMobile ? 'stretch' : 'center'}>
-      <Button component={RouterLink} to="/dashboard" onClick={() => setOpen(false)}>Дашборд</Button>
-      <Button component={RouterLink} to="/groups" startIcon={<MenuBookRoundedIcon />} onClick={() => setOpen(false)}>Группы</Button>
-      <Button component={RouterLink} to="/history" onClick={() => setOpen(false)}>История</Button>
-      <Button component={RouterLink} to="/profile" onClick={() => setOpen(false)}>Профиль</Button>
-      <Typography variant="body2" sx={{ px: isMobile ? 1 : 0 }}>{user?.full_name}</Typography>
-      <Button color="error" variant="outlined" onClick={() => { setOpen(false); logout(); }}>Выйти</Button>
-    </Stack>
+  const nav = useMemo(
+    () => (
+      <Stack direction={isMobile ? 'column' : 'row'} spacing={1} alignItems={isMobile ? 'stretch' : 'center'}>
+        {navigationItems.map((item) => {
+          const active = location.pathname === item.to;
+          return (
+            <Button
+              key={item.to}
+              component={RouterLink}
+              to={item.to}
+              onClick={() => setOpen(false)}
+              variant={active ? 'contained' : 'text'}
+              color="primary"
+              sx={{
+                justifyContent: isMobile ? 'flex-start' : 'center',
+                px: 1.5,
+              }}
+            >
+              {item.label}
+            </Button>
+          );
+        })}
+        <Typography variant="body2" color="text.secondary" sx={{ px: isMobile ? 1 : 0, ml: isMobile ? 0 : 1 }}>
+          {user?.full_name}
+        </Typography>
+        <Button color="inherit" variant="outlined" onClick={() => { setOpen(false); logout(); }}>
+          Выйти
+        </Button>
+      </Stack>
+    ),
+    [isMobile, location.pathname, logout, user?.full_name],
   );
 
   if (isSessionRoute) {
     return (
-      <Box sx={{ minHeight: '100vh', backgroundColor: '#050913' }}>
+      <Box sx={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
         <Outlet />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f2f7ff 0%, #fff8ef 100%)' }}>
-      <AppBar position="sticky" color="transparent" elevation={0} sx={{ backdropFilter: 'blur(8px)', borderBottom: '1px solid #d9e3f2' }}>
-        <Toolbar>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexGrow: 1 }}>
-            <VideocamRoundedIcon color="primary" />
-            <Typography variant="h6" fontWeight={700}>СтудКоманда</Typography>
+    <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
+      <AppBar position="sticky" color="transparent" sx={{ borderBottom: '1px solid', borderColor: 'divider', backdropFilter: 'blur(14px)', backgroundColor: 'rgba(243, 244, 246, 0.88)' }}>
+        <Toolbar sx={{ minHeight: 72 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 2,
+                display: 'grid',
+                placeItems: 'center',
+                backgroundColor: '#111827',
+                color: '#ffffff',
+              }}
+            >
+              <VideocamRoundedIcon fontSize="small" />
+            </Box>
+            <Box>
+              <Typography variant="subtitle1">StudySession</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Совместная работа и видеосессии
+              </Typography>
+            </Box>
           </Stack>
           {user && !isMobile && nav}
-          {user && isMobile && (
-            <IconButton onClick={() => setOpen(true)}>
+          {user && isMobile ? (
+            <IconButton onClick={() => setOpen(true)} color="inherit">
               <MenuRoundedIcon />
             </IconButton>
-          )}
+          ) : null}
         </Toolbar>
       </AppBar>
 
-      <Drawer anchor="right" open={open} onClose={() => setOpen(false)}>
-        <Box sx={{ width: 280, p: 2 }}>{nav}</Box>
+      <Drawer anchor="right" open={open} onClose={() => setOpen(false)} PaperProps={{ sx: { width: 280, p: 2 } }}>
+        {nav}
       </Drawer>
 
-      <Container sx={{ py: { xs: 2, md: 3 }, px: { xs: 1.5, md: 3 } }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 }, px: { xs: 2, md: 3 } }}>
         <Outlet />
       </Container>
     </Box>

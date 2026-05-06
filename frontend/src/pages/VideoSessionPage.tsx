@@ -1,5 +1,4 @@
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import { LiveKitRoom } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -28,12 +27,6 @@ export function VideoSessionPage() {
     () => ({
       adaptiveStream: true,
       dynacast: true,
-      /**
-       * livekit-client по умолчанию ходит на `/rtc/v1` (singlePeerConnection: true).
-       * Образ `livekit/livekit-server:v1.8` отвечает на этом пути 404 (см. nginx: GET /livekit/rtc/v1 -> 404),
-       * из-за этого валится сигналинг/ICE и в UI "Предыдущее подключение...".
-       * Режим v0 (`/rtc`) включается при singlePeerConnection: false — см. Room.connectSignal -> engine.join(..., !singlePeerConnection).
-       */
       singlePeerConnection: false,
     }),
     [],
@@ -66,9 +59,7 @@ export function VideoSessionPage() {
   const handleMediaDeviceFailure = useCallback((failure?: MediaDeviceFailure, kind?: MediaDeviceKind) => {
     const deviceLabel = kind === 'videoinput' ? 'камере' : kind === 'audioinput' ? 'микрофоне' : 'устройстве';
     const detail = failure !== undefined ? ` (${failure})` : '';
-    setInMeetingMediaWarning(
-      `Не удалось переключить ${deviceLabel}${detail}. Закройте другие вкладки с камерой и попробуйте снова.`,
-    );
+    setInMeetingMediaWarning(`Не удалось переключить ${deviceLabel}${detail}. Закройте другие вкладки с камерой и попробуйте снова.`);
   }, []);
 
   const handleTrackDeviceError = useCallback((message: string) => {
@@ -96,7 +87,6 @@ export function VideoSessionPage() {
     return microphoneCaptureDefaults;
   }, [joinConfig?.audioEnabled, microphoneCaptureDefaults]);
 
-  /** Для системной камеры — `true`, как в предпросмотре: без жёсткого 1280x720 (на части ноутбуков ломает трек). */
   const liveKitVideo = useMemo((): boolean | VideoCaptureOptions => {
     if (!joinConfig?.videoEnabled) {
       return false;
@@ -141,21 +131,10 @@ export function VideoSessionPage() {
 
   if (!tokenData && !pageError) {
     return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'grid',
-          placeItems: 'center',
-          textAlign: 'center',
-          px: 3,
-          background: 'radial-gradient(circle at top left, #203868 0%, #08111f 42%, #04070f 100%)',
-        }}
-      >
-        <Stack spacing={1.25}>
-          <Typography variant="h4" fontWeight={800} color="#ffffff">
-            Подключаем комнату
-          </Typography>
-          <Typography sx={{ color: alpha('#ffffff', 0.72) }}>
+      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', px: 3 }}>
+        <Stack spacing={1.25} textAlign="center">
+          <Typography variant="h4">Подключаем комнату</Typography>
+          <Typography color="text.secondary">
             Загружаем параметры видеосессии и подготавливаем экран проверки устройств.
           </Typography>
         </Stack>
@@ -165,28 +144,11 @@ export function VideoSessionPage() {
 
   if (pageError && !tokenData) {
     return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'grid',
-          placeItems: 'center',
-          px: 2,
-          background: 'radial-gradient(circle at top left, #203868 0%, #08111f 42%, #04070f 100%)',
-        }}
-      >
-        <Paper
-          sx={{
-            maxWidth: 520,
-            p: 3,
-            borderRadius: 5,
-            color: '#ffffff',
-            background: alpha('#08111f', 0.9),
-            border: `1px solid ${alpha('#ffffff', 0.08)}`,
-          }}
-        >
+      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', px: 2 }}>
+        <Paper sx={{ maxWidth: 520, p: 4, borderRadius: 3 }}>
           <Stack spacing={2}>
-            <Typography variant="h4" fontWeight={800}>Не удалось открыть видеосессию</Typography>
-            <Typography sx={{ color: alpha('#ffffff', 0.76) }}>{pageError}</Typography>
+            <Typography variant="h4">Не удалось открыть видеосессию</Typography>
+            <Typography color="text.secondary">{pageError}</Typography>
             <Button variant="contained" onClick={() => navigate('/groups')}>
               Вернуться к группам
             </Button>
@@ -241,12 +203,7 @@ export function VideoSessionPage() {
         }}
         onBack={() => navigate('/groups')}
       />
-      <SessionSummaryDialog
-        open={summaryOpen}
-        sessionId={Number(sessionId)}
-        autoFocusReminder
-        onClose={() => setSummaryOpen(false)}
-      />
+      <SessionSummaryDialog open={summaryOpen} sessionId={Number(sessionId)} autoFocusReminder onClose={() => setSummaryOpen(false)} />
     </>
   );
 }

@@ -24,11 +24,11 @@ export function SessionHistoryPage() {
   }, []);
 
   return (
-    <Stack spacing={2}>
-      <Paper sx={{ p: 3, borderRadius: 5 }}>
-        <Typography variant="h4" fontWeight={900}>История сессий</Typography>
-        <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-          Все прошедшие сессии пользователя с датой, комнатой и составом участников.
+    <Stack spacing={3}>
+      <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 3 }}>
+        <Typography variant="h3">История сессий</Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+          Прошедшие встречи, команда и короткий итог по каждой сессии.
         </Typography>
       </Paper>
 
@@ -36,10 +36,15 @@ export function SessionHistoryPage() {
 
       <Stack spacing={1.5}>
         {history.map((item) => (
-          <Paper key={item.session_id} sx={{ p: 2, borderRadius: 4 }}>
-            <Stack spacing={1}>
-              <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>
-                <BoxTitle title={item.session_title} subtitle={new Date(item.session_date).toLocaleString('ru-RU')} />
+          <Paper key={item.session_id} sx={{ p: 3, borderRadius: 3 }}>
+            <Stack spacing={1.5}>
+              <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1.5}>
+                <Stack spacing={0.5}>
+                  <Typography variant="h6">{item.session_title}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {new Date(item.session_date).toLocaleString('ru-RU')}
+                  </Typography>
+                </Stack>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                   <Chip icon={<HistoryEduRoundedIcon />} label={templateLabels[item.template_key] ?? 'Свободная сессия'} />
                   <Chip icon={<GroupsRoundedIcon />} label={item.group_name} />
@@ -59,17 +64,8 @@ export function SessionHistoryPage() {
             </Stack>
           </Paper>
         ))}
-        {!error && history.length === 0 ? <Alert severity="info">История пока пуста. Посетите хотя бы одну сессию.</Alert> : null}
+        {!error && history.length === 0 ? <Alert severity="info">История пока пуста.</Alert> : null}
       </Stack>
-    </Stack>
-  );
-}
-
-function BoxTitle({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <Stack spacing={0.25}>
-      <Typography variant="h6" fontWeight={800}>{title}</Typography>
-      <Typography variant="body2" color="text.secondary">{subtitle}</Typography>
     </Stack>
   );
 }

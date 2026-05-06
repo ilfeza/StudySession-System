@@ -28,28 +28,21 @@ import {
   useTheme,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import {
-  ParticipantTile,
-  RoomAudioRenderer,
-  useDisconnectButton,
-  useParticipants,
-  useTrackToggle,
-  useTracks,
-} from '@livekit/components-react';
+import { useDisconnectButton, useParticipants, useTrackToggle } from '@livekit/components-react';
 import { useEffect, useMemo, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import type { AudioCaptureOptions, VideoCaptureOptions } from 'livekit-client';
 import { Track } from 'livekit-client';
 
 import { api } from '../../api/client';
 import { ChatPanel } from '../../components/ChatPanel';
+import { VideoGrid } from '../../components/VideoGrid';
 import { MaterialsPanel } from '../../components/materials/MaterialsPanel';
 import { TaskPanel } from '../../components/tasks/TaskPanel';
-import { PomodoroTile } from '../../components/widgets/PomodoroTile';
 import { WidgetsPanel } from '../../components/widgets/WidgetsPanel';
 import { formatMMSS } from '../../components/widgets/pomodoroTime';
 import { useWidgetsSocket } from '../../components/widgets/useWidgetsSocket';
 import type { ChatMessage, SessionTask, VideoSessionRoom } from '../../types';
-import type { PomodoroStateSnapshot, SessionStage } from '../../types/pomodoro';
+import type { SessionStage } from '../../types/pomodoro';
 import { formatRoomName } from './utils';
 
 type SideTab = 'chat' | 'widgets' | 'materials';
@@ -103,100 +96,6 @@ function CallControlButton({
   );
 }
 
-function MeetingStage({
-  pomodoro,
-  localUserName,
-  onPomodoroPause,
-  onPomodoroResume,
-  onPomodoroSkip,
-}: {
-  pomodoro: PomodoroStateSnapshot | null;
-  localUserName: string;
-  onPomodoroPause: () => void;
-  onPomodoroResume: () => void;
-  onPomodoroSkip: () => void;
-}) {
-  const tracks = useTracks(
-    [
-      { source: Track.Source.Camera, withPlaceholder: true },
-      { source: Track.Source.ScreenShare, withPlaceholder: false },
-    ],
-    { onlySubscribed: false },
-  );
-
-  return (
-    <Box
-      sx={{
-        height: '100%',
-        p: { xs: 1.5, md: 2 },
-        '& .lk-participant-tile': {
-          overflow: 'hidden',
-          borderRadius: 5,
-          border: `1px solid ${alpha('#ffffff', 0.08)}`,
-          background: 'linear-gradient(180deg, #1a2740 0%, #0a1220 100%)',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.28)',
-        },
-        '& .lk-participant-media-video': {
-          objectFit: 'cover',
-        },
-        '& .lk-participant-metadata': {
-          left: 16,
-          right: 16,
-          bottom: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '10px 14px',
-          borderRadius: 999,
-          background: alpha('#050913', 0.7),
-          border: `1px solid ${alpha('#ffffff', 0.08)}`,
-          backdropFilter: 'blur(16px)',
-        },
-        '& .lk-participant-name': {
-          color: '#ffffff',
-          fontWeight: 800,
-          fontSize: '0.95rem',
-        },
-      }}
-    >
-      <Box
-        sx={{
-          height: '100%',
-          display: 'grid',
-          gap: 1.5,
-          gridAutoRows: '1fr',
-          gridTemplateColumns: {
-            xs: '1fr',
-            sm: 'repeat(2, minmax(0, 1fr))',
-            md: 'repeat(3, minmax(0, 1fr))',
-            xl: 'repeat(4, minmax(0, 1fr))',
-          },
-          alignContent: 'start',
-        }}
-      >
-        {tracks.map((trackRef, index) => {
-          const key = 'participant' in trackRef
-            ? `${trackRef.participant.identity}-${trackRef.source}-${'publication' in trackRef && trackRef.publication ? trackRef.publication.trackSid : 'placeholder'}`
-            : String(index);
-
-          return <ParticipantTile key={key} trackRef={trackRef} />;
-        })}
-
-        {pomodoro?.enabled ? (
-          <PomodoroTile
-            snapshot={pomodoro}
-            localUserName={localUserName}
-            onPause={onPomodoroPause}
-            onResume={onPomodoroResume}
-            onSkip={onPomodoroSkip}
-          />
-        ) : null}
-      </Box>
-      <RoomAudioRenderer />
-    </Box>
-  );
-}
-
 function MeetingParticipantsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const participants = useParticipants();
 
@@ -227,6 +126,7 @@ function MeetingParticipantsDrawer({ open, onClose }: { open: boolean; onClose: 
               borderRadius: 3,
               background: alpha('#162744', 0.92),
               border: `1px solid ${alpha('#ffffff', 0.08)}`,
+              color: '#ffffff',
             }}
           >
             <Typography fontWeight={700}>
@@ -441,12 +341,12 @@ export function MeetingRoomScreen({
     <Box
       sx={{
         minHeight: '100vh',
-        px: { xs: 1.5, md: 2.5 },
-        py: { xs: 1.5, md: 2.5 },
-        background: 'radial-gradient(circle at top left, #203868 0%, #08111f 42%, #04070f 100%)',
+        px: { xs: 2, md: 3 },
+        py: { xs: 2, md: 3 },
+        background: 'radial-gradient(circle at top left, #203868 0%, #08111f 38%, #04070f 100%)',
       }}
     >
-      <Stack spacing={2} sx={{ minHeight: 'calc(100vh - 24px)' }}>
+      <Stack spacing={2.5}>
         {mediaWarning ? (
           <Alert severity="warning" onClose={onDismissMediaWarning} sx={{ borderRadius: 3 }}>
             {mediaWarning}
@@ -464,275 +364,353 @@ export function MeetingRoomScreen({
           </Alert>
         ) : null}
 
-        {emptyTasksHintVisible ? (
-          <Alert
-            severity="info"
-            action={<Button color="inherit" size="small" onClick={handleQuickCreateTask}>Создать задачу</Button>}
-            sx={{ borderRadius: 3 }}
-          >
-            В сессии пока нет задач. Добавьте карточки, чтобы распределить работу команды.
-          </Alert>
-        ) : null}
-
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
-          <Stack spacing={0.75}>
-            <Button
-              onClick={onBack}
-              startIcon={<ArrowBackRoundedIcon />}
-              sx={{ alignSelf: 'flex-start', color: '#dce8ff', px: 0, '&:hover': { backgroundColor: 'transparent', color: '#ffffff' } }}
-            >
-              Вернуться к подготовке
-            </Button>
-
-            <Typography variant="h4" fontWeight={800} color="#ffffff">
-              {sessionRoom?.title || formatRoomName(roomName)}
-            </Typography>
-
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ pt: 0.75 }}>
-              <Button
-                variant={mainView === 'meeting' ? 'contained' : 'outlined'}
-                startIcon={<VideocamRoundedIcon />}
-                onClick={() => setMainView('meeting')}
-                sx={{
-                  minWidth: 170,
-                  borderRadius: 999,
-                  fontWeight: 900,
-                  textTransform: 'none',
-                  ...(mainView === 'meeting'
-                    ? { color: '#ffffff', background: 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)' }
-                    : { color: '#ffffff', borderColor: alpha('#ffffff', 0.18), background: alpha('#ffffff', 0.03) }),
-                }}
-              >
-                Видеосессия
-              </Button>
-
-              <Button
-                variant={mainView === 'kanban' ? 'contained' : 'outlined'}
-                startIcon={<AssignmentTurnedInRoundedIcon />}
-                onClick={() => {
-                  setMainView('kanban');
-                  setParticipantsOpen(false);
-                  setSidePanelOpen(false);
-                }}
-                sx={{
-                  minWidth: 140,
-                  borderRadius: 999,
-                  fontWeight: 900,
-                  textTransform: 'none',
-                  ...(mainView === 'kanban'
-                    ? { color: '#08111f', background: 'linear-gradient(135deg, #a7f3d0 0%, #67e8f9 100%)' }
-                    : { color: '#ffffff', borderColor: alpha('#ffffff', 0.18), background: alpha('#ffffff', 0.03) }),
-                }}
-              >
-                Канбан
-              </Button>
-
-              <Button variant="outlined" onClick={handleQuickCreateTask} sx={{ borderRadius: 999, color: '#ffffff', borderColor: alpha('#ffffff', 0.18) }}>
-                Создать задачу
-              </Button>
-              <Button variant="outlined" onClick={handleQuickAddMaterial} sx={{ borderRadius: 999, color: '#ffffff', borderColor: alpha('#ffffff', 0.18) }}>
-                Добавить материал
-              </Button>
-              <Button variant="outlined" disabled={!canControlStage} onClick={handleFinishStage} sx={{ borderRadius: 999, color: '#ffffff', borderColor: alpha('#ffffff', 0.18) }}>
-                Завершить этап
-              </Button>
-            </Stack>
-          </Stack>
-
-          <Stack spacing={0.35} alignItems={{ xs: 'flex-start', md: 'flex-end' }}>
-            {sessionRoom?.template_key ? <Chip label={templateLabels[sessionRoom.template_key] ?? sessionRoom.template_key} /> : null}
-            <Typography sx={{ color: '#dce8ff' }}>
-              Участников в комнате: {participants.length}
-            </Typography>
-            <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.7) }}>
-              Вы в комнате как {participantName}
-            </Typography>
-          </Stack>
-        </Stack>
-
-        <Paper
+        <Button
+          onClick={onBack}
+          startIcon={<ArrowBackRoundedIcon />}
           sx={{
-            p: 1.25,
-            borderRadius: 4,
-            background: alpha('#050913', 0.6),
-            border: `1px solid ${alpha('#ffffff', 0.08)}`,
-            backdropFilter: 'blur(18px)',
+            alignSelf: 'flex-start',
+            color: '#dce8ff',
+            px: 0,
+            '&:hover': { backgroundColor: 'transparent', color: '#ffffff' },
           }}
         >
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }} justifyContent="space-between">
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72), fontWeight: 800 }}>
-                Этап:
-              </Typography>
-              <Chip
-                label={stageUi.label}
-                size="small"
-                sx={{
-                  borderRadius: 999,
-                  color: stageUi.color,
-                  backgroundColor: stageUi.bg,
-                  border: `1px solid ${stageUi.border}`,
-                  fontWeight: 900,
-                }}
-              />
-              {stageElapsed !== null ? (
-                <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.7) }}>
-                  {formatMMSS(stageElapsed)}
-                </Typography>
-              ) : null}
-            </Stack>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-              <Button variant={stage === 'discussion' ? 'contained' : 'outlined'} disabled={!canControlStage} onClick={() => sendWidgetEvent({ event: 'stage_set', payload: { stage: 'discussion' } })} sx={{ borderRadius: 3, fontWeight: 900, ...(stage === 'discussion' ? { background: 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)' } : { color: '#ffffff', borderColor: alpha('#ffffff', 0.18), background: alpha('#ffffff', 0.03) }) }}>
-                К обсуждению
-              </Button>
-              <Button variant={stage === 'work' ? 'contained' : 'outlined'} disabled={!canControlStage} onClick={() => sendWidgetEvent({ event: 'stage_set', payload: { stage: 'work' } })} sx={{ borderRadius: 3, fontWeight: 900, ...(stage === 'work' ? { background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' } : { color: '#ffffff', borderColor: alpha('#ffffff', 0.18), background: alpha('#ffffff', 0.03) }) }}>
-                К работе
-              </Button>
-              <Button variant={stage === 'summary' ? 'contained' : 'outlined'} disabled={!canControlStage} onClick={() => sendWidgetEvent({ event: 'stage_set', payload: { stage: 'summary' } })} sx={{ borderRadius: 3, fontWeight: 900, ...(stage === 'summary' ? { background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' } : { color: '#ffffff', borderColor: alpha('#ffffff', 0.18), background: alpha('#ffffff', 0.03) }) }}>
-                К итогам
-              </Button>
-            </Stack>
-          </Stack>
-        </Paper>
+          Вернуться к подготовке
+        </Button>
 
         <Box
           sx={{
-            flex: 1,
-            minHeight: 0,
             display: 'grid',
-            gap: 2,
-            gridTemplateColumns: {
-              xs: '1fr',
-              lg: mainView === 'meeting' && sidePanelOpen ? 'minmax(0, 1fr) 360px' : '1fr',
-            },
+            gap: 2.5,
+            alignItems: 'stretch',
+            gridTemplateColumns: mainView === 'meeting'
+              ? { xs: '1fr', lg: 'minmax(0, 1.5fr) minmax(320px, 420px)' }
+              : '1fr',
           }}
         >
-          <Paper
-            sx={{
-              position: 'relative',
-              minHeight: { xs: 'calc(100vh - 220px)', lg: 'calc(100vh - 140px)' },
-              overflow: 'hidden',
-              borderRadius: 6,
-              background: 'linear-gradient(180deg, #101a2a 0%, #050913 100%)',
-              border: `1px solid ${alpha('#ffffff', 0.08)}`,
-              boxShadow: '0 32px 80px rgba(0, 0, 0, 0.42)',
-            }}
-          >
-            <Box sx={{ height: '100%', visibility: mainView === 'meeting' ? 'visible' : 'hidden', pointerEvents: mainView === 'meeting' ? 'auto' : 'none' }}>
-              <MeetingStage
-                pomodoro={widgetsState.pomodoro}
-                localUserName={participantName}
-                onPomodoroPause={() => sendWidgetEvent({ event: 'pomodoro_pause', payload: {} })}
-                onPomodoroResume={() => sendWidgetEvent({ event: 'pomodoro_resume', payload: {} })}
-                onPomodoroSkip={() => sendWidgetEvent({ event: 'pomodoro_skip_phase', payload: {} })}
-              />
-
-              <MeetingControls
-                chatOpen={sidePanelOpen && sideTab === 'chat'}
-                onChatToggle={() => openSideTab('chat')}
-                onWidgetsToggle={() => openSideTab('widgets')}
-                materialsOpen={sidePanelOpen && sideTab === 'materials'}
-                onMaterialsToggle={() => openSideTab('materials')}
-                participantsOpen={participantsOpen}
-                onParticipantsToggle={() => {
-                  setMainView('meeting');
-                  setParticipantsOpen((prev) => !prev);
-                  setSidePanelOpen(false);
-                }}
-                microphoneCaptureOptions={microphoneCaptureOptions}
-                cameraCaptureOptions={cameraCaptureOptions}
-                onTrackDeviceError={onTrackDeviceError}
-              />
-            </Box>
-
-            {mainView === 'kanban' ? (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  p: { xs: 1, md: 1.5 },
-                  background: 'linear-gradient(180deg, rgba(6, 12, 22, 0.94) 0%, rgba(3, 8, 15, 0.98) 100%)',
-                  backdropFilter: 'blur(10px)',
-                }}
-              >
-                <Stack spacing={1.5} sx={{ height: '100%' }}>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
-                    <Stack spacing={0.35}>
-                      <Typography variant="h5" fontWeight={900} color="#ffffff">
-                        Канбан-доска
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.68) }}>
-                        Рабочий план видеосессии с быстрым созданием и обновлением задач.
-                      </Typography>
-                    </Stack>
-
-                    <Button
-                      variant="contained"
-                      startIcon={<DashboardCustomizeRoundedIcon />}
-                      onClick={() => setMainView('meeting')}
-                      sx={{
-                        alignSelf: { xs: 'stretch', sm: 'center' },
-                        borderRadius: 999,
-                        fontWeight: 900,
-                        textTransform: 'none',
-                        color: '#08111f',
-                        background: 'linear-gradient(135deg, #7dd3fc 0%, #a7f3d0 100%)',
-                      }}
-                    >
-                      Обратно к видеосессии
-                    </Button>
+          <Stack spacing={2}>
+            <Paper
+              sx={{
+                position: 'relative',
+                minHeight: { xs: 420, md: 620 },
+                overflow: 'hidden',
+                borderRadius: 6,
+                background: 'linear-gradient(160deg, #162237 0%, #08111f 55%, #050913 100%)',
+                border: `1px solid ${alpha('#ffffff', 0.08)}`,
+                boxShadow: '0 32px 80px rgba(0, 0, 0, 0.42)',
+              }}
+            >
+              {mainView === 'meeting' ? (
+                <>
+                  <VideoGrid />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'linear-gradient(180deg, rgba(4, 7, 15, 0.02) 0%, rgba(4, 7, 15, 0.42) 100%)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <Stack
+                    spacing={0.5}
+                    sx={{
+                      position: 'absolute',
+                      left: 20,
+                      right: 20,
+                      bottom: 104,
+                      p: 2,
+                      borderRadius: 4,
+                      color: '#ffffff',
+                      background: alpha('#050913', 0.72),
+                      border: `1px solid ${alpha('#ffffff', 0.08)}`,
+                      backdropFilter: 'blur(18px)',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.65) }}>
+                      Видеосессия
+                    </Typography>
+                    <Typography variant="h6" fontWeight={800}>
+                      {sessionRoom?.title || formatRoomName(roomName)}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.78) }}>
+                      Вы в комнате как {participantName}
+                    </Typography>
                   </Stack>
 
-                  <Box sx={{ flex: 1, minHeight: 0 }}>
-                    <TaskPanel
-                      sessionId={sessionId}
-                      fullscreen
-                      openCreateKey={taskCreateKey}
-                      sessionTitle={sessionRoom?.title ?? formatRoomName(roomName)}
-                      sessionDescription={sessionRoom?.description ?? ''}
-                      chatMessages={chatMessages}
-                    />
-                  </Box>
-                </Stack>
-              </Box>
-            ) : null}
-          </Paper>
-
-          {!isMobile && mainView === 'meeting' && sidePanelOpen ? (
-            <Box sx={{ minHeight: { lg: 'calc(100vh - 140px)' } }}>
-              <Paper
-                sx={{
-                  height: '100%',
-                  p: 1.25,
-                  borderRadius: 6,
-                  background: alpha('#050913', 0.85),
-                  border: `1px solid ${alpha('#ffffff', 0.08)}`,
-                }}
-              >
-                <Tabs
-                  value={sideTab}
-                  onChange={(_, next) => setSideTab(next)}
-                  textColor="inherit"
-                  indicatorColor="primary"
+                  <MeetingControls
+                    chatOpen={sidePanelOpen && sideTab === 'chat'}
+                    onChatToggle={() => openSideTab('chat')}
+                    onWidgetsToggle={() => openSideTab('widgets')}
+                    materialsOpen={sidePanelOpen && sideTab === 'materials'}
+                    onMaterialsToggle={() => openSideTab('materials')}
+                    participantsOpen={participantsOpen}
+                    onParticipantsToggle={() => {
+                      setParticipantsOpen((prev) => !prev);
+                      setSidePanelOpen(false);
+                    }}
+                    microphoneCaptureOptions={microphoneCaptureOptions}
+                    cameraCaptureOptions={cameraCaptureOptions}
+                    onTrackDeviceError={onTrackDeviceError}
+                  />
+                </>
+              ) : (
+                <Box
                   sx={{
-                    mb: 1.25,
-                    '& .MuiTab-root': { color: alpha('#ffffff', 0.75), fontWeight: 900, textTransform: 'none' },
-                    '& .Mui-selected': { color: '#ffffff' },
+                    height: '100%',
+                    p: { xs: 1, md: 1.5 },
+                    background: 'linear-gradient(180deg, rgba(6, 12, 22, 0.94) 0%, rgba(3, 8, 15, 0.98) 100%)',
                   }}
                 >
-                  <Tab value="chat" label="Чат" />
-                  <Tab value="widgets" label="Виджеты" />
-                  <Tab value="materials" label="Материалы" />
-                </Tabs>
+                  <Stack spacing={1.5} sx={{ height: '100%' }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
+                      <Stack spacing={0.35}>
+                        <Typography variant="h5" fontWeight={900} color="#ffffff">
+                          Канбан-доска
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.68) }}>
+                          Рабочий план видеосессии с быстрым созданием и обновлением задач.
+                        </Typography>
+                      </Stack>
 
-                {sideTab === 'chat' ? <ChatPanel sessionId={sessionId} variant="session" /> : null}
-                {sideTab === 'widgets' ? <WidgetsPanel snapshot={widgetsState.pomodoro} localUserName={participantName} send={sendWidgetEvent} /> : null}
-                {sideTab === 'materials' && sessionRoom ? <MaterialsPanel groupId={sessionRoom.group_id} compact /> : null}
-              </Paper>
-            </Box>
+                      <Button
+                        variant="contained"
+                        startIcon={<DashboardCustomizeRoundedIcon />}
+                        onClick={() => setMainView('meeting')}
+                        sx={{
+                          alignSelf: { xs: 'stretch', sm: 'center' },
+                          borderRadius: 999,
+                          fontWeight: 900,
+                          textTransform: 'none',
+                          color: '#08111f',
+                          background: 'linear-gradient(135deg, #7dd3fc 0%, #a7f3d0 100%)',
+                        }}
+                      >
+                        Обратно к видеосессии
+                      </Button>
+                    </Stack>
+
+                    <Box sx={{ flex: 1, minHeight: 0 }}>
+                      <TaskPanel
+                        sessionId={sessionId}
+                        fullscreen
+                        openCreateKey={taskCreateKey}
+                        sessionTitle={sessionRoom?.title ?? formatRoomName(roomName)}
+                        sessionDescription={sessionRoom?.description ?? ''}
+                        chatMessages={chatMessages}
+                      />
+                    </Box>
+                  </Stack>
+                </Box>
+              )}
+            </Paper>
+          </Stack>
+
+          {mainView === 'meeting' ? (
+            <Paper
+              sx={{
+                p: 2.25,
+                borderRadius: 6,
+                color: '#ffffff',
+                background: alpha('#08111f', 0.88),
+                border: `1px solid ${alpha('#ffffff', 0.08)}`,
+                boxShadow: '0 24px 60px rgba(0, 0, 0, 0.28)',
+              }}
+            >
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="overline" sx={{ letterSpacing: 1.2, color: alpha('#ffffff', 0.52) }}>
+                    Сессия
+                  </Typography>
+                  <Typography variant="h5" fontWeight={800}>
+                    {sessionRoom?.title || formatRoomName(roomName)}
+                  </Typography>
+                  <Typography sx={{ mt: 0.75, color: alpha('#ffffff', 0.72) }}>
+                    Всё в одной логике с экраном предпросмотра: слева видео, справа управление комнатой.
+                  </Typography>
+                </Box>
+
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {sessionRoom?.template_key ? (
+                    <Chip label={templateLabels[sessionRoom.template_key] ?? sessionRoom.template_key} />
+                  ) : null}
+                  <Chip
+                    label={stageUi.label}
+                    size="small"
+                    sx={{
+                      borderRadius: 999,
+                      color: stageUi.color,
+                      backgroundColor: stageUi.bg,
+                      border: `1px solid ${stageUi.border}`,
+                      fontWeight: 900,
+                    }}
+                  />
+                </Stack>
+
+                <Paper
+                  sx={{
+                    p: 1.75,
+                    borderRadius: 4,
+                    background: alpha('#ffffff', 0.04),
+                    border: `1px solid ${alpha('#ffffff', 0.08)}`,
+                    color: '#ffffff',
+                  }}
+                >
+                  <Stack spacing={1.25}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography fontWeight={700}>Участников в комнате</Typography>
+                      <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72) }}>
+                        {participants.length}
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography fontWeight={700}>Текущий этап</Typography>
+                      <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72) }}>
+                        {stageUi.label}
+                      </Typography>
+                    </Stack>
+                    {stageElapsed !== null ? (
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography fontWeight={700}>Длительность этапа</Typography>
+                        <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72) }}>
+                          {formatMMSS(stageElapsed)}
+                        </Typography>
+                      </Stack>
+                    ) : null}
+                    <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72) }}>
+                      Вы в комнате как {participantName}
+                    </Typography>
+                  </Stack>
+                </Paper>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
+                  <Button
+                    fullWidth
+                    variant={mainView === 'meeting' ? 'contained' : 'outlined'}
+                    startIcon={<VideocamRoundedIcon />}
+                    onClick={() => setMainView('meeting')}
+                    sx={{
+                      py: 1.2,
+                      borderRadius: 4,
+                      color: '#ffffff',
+                      borderColor: alpha('#ffffff', 0.12),
+                      background: mainView === 'meeting'
+                        ? 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)'
+                        : alpha('#ffffff', 0.04),
+                    }}
+                  >
+                    Видеосессия
+                  </Button>
+                  <Button
+                    fullWidth
+                    variant={mainView === 'kanban' ? 'contained' : 'outlined'}
+                    startIcon={<AssignmentTurnedInRoundedIcon />}
+                    onClick={() => {
+                      setMainView('kanban');
+                      setParticipantsOpen(false);
+                      setSidePanelOpen(false);
+                    }}
+                    sx={{
+                      py: 1.2,
+                      borderRadius: 4,
+                      color: mainView === 'kanban' ? '#08111f' : '#ffffff',
+                      borderColor: alpha('#ffffff', 0.12),
+                      background: mainView === 'kanban'
+                        ? 'linear-gradient(135deg, #a7f3d0 0%, #67e8f9 100%)'
+                        : alpha('#ffffff', 0.04),
+                    }}
+                  >
+                    Канбан
+                  </Button>
+                </Stack>
+
+                <Stack spacing={1}>
+                  <Button variant="outlined" onClick={() => openSideTab('chat')} sx={{ justifyContent: 'flex-start', borderRadius: 4, color: '#ffffff', borderColor: alpha('#ffffff', 0.12) }}>
+                    Открыть чат
+                  </Button>
+                  <Button variant="outlined" onClick={() => openSideTab('widgets')} sx={{ justifyContent: 'flex-start', borderRadius: 4, color: '#ffffff', borderColor: alpha('#ffffff', 0.12) }}>
+                    Открыть виджеты
+                  </Button>
+                  <Button variant="outlined" onClick={() => openSideTab('materials')} sx={{ justifyContent: 'flex-start', borderRadius: 4, color: '#ffffff', borderColor: alpha('#ffffff', 0.12) }}>
+                    Открыть материалы
+                  </Button>
+                  <Button variant="outlined" onClick={handleQuickCreateTask} sx={{ justifyContent: 'flex-start', borderRadius: 4, color: '#ffffff', borderColor: alpha('#ffffff', 0.12) }}>
+                    Создать задачу
+                  </Button>
+                  <Button variant="outlined" onClick={handleQuickAddMaterial} sx={{ justifyContent: 'flex-start', borderRadius: 4, color: '#ffffff', borderColor: alpha('#ffffff', 0.12) }}>
+                    Добавить материал
+                  </Button>
+                </Stack>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <Button variant={stage === 'discussion' ? 'contained' : 'outlined'} disabled={!canControlStage} onClick={() => sendWidgetEvent({ event: 'stage_set', payload: { stage: 'discussion' } })} sx={{ borderRadius: 3, fontWeight: 900, ...(stage === 'discussion' ? { background: 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)' } : { color: '#ffffff', borderColor: alpha('#ffffff', 0.18), background: alpha('#ffffff', 0.03) }) }}>
+                    К обсуждению
+                  </Button>
+                  <Button variant={stage === 'work' ? 'contained' : 'outlined'} disabled={!canControlStage} onClick={() => sendWidgetEvent({ event: 'stage_set', payload: { stage: 'work' } })} sx={{ borderRadius: 3, fontWeight: 900, ...(stage === 'work' ? { background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' } : { color: '#ffffff', borderColor: alpha('#ffffff', 0.18), background: alpha('#ffffff', 0.03) }) }}>
+                    К работе
+                  </Button>
+                  <Button variant={stage === 'summary' ? 'contained' : 'outlined'} disabled={!canControlStage} onClick={() => sendWidgetEvent({ event: 'stage_set', payload: { stage: 'summary' } })} sx={{ borderRadius: 3, fontWeight: 900, ...(stage === 'summary' ? { background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' } : { color: '#ffffff', borderColor: alpha('#ffffff', 0.18), background: alpha('#ffffff', 0.03) }) }}>
+                    К итогам
+                  </Button>
+                </Stack>
+
+                <Button
+                  fullWidth
+                  variant="contained"
+                  disabled={!canControlStage}
+                  onClick={handleFinishStage}
+                  sx={{
+                    py: 1.4,
+                    borderRadius: 4.5,
+                    fontWeight: 800,
+                    background: 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)',
+                    boxShadow: '0 16px 30px rgba(29, 110, 255, 0.35)',
+                  }}
+                >
+                  Завершить этап
+                </Button>
+
+                {emptyTasksHintVisible ? (
+                  <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72) }}>
+                    В сессии пока нет задач. Добавьте карточки, чтобы распределить работу команды.
+                  </Typography>
+                ) : null}
+              </Stack>
+            </Paper>
           ) : null}
         </Box>
+
+        {!isMobile && mainView === 'meeting' && sidePanelOpen ? (
+          <Box sx={{ maxWidth: 420, ml: 'auto', width: '100%' }}>
+            <Paper
+              sx={{
+                p: 1.25,
+                borderRadius: 6,
+                background: alpha('#050913', 0.85),
+                border: `1px solid ${alpha('#ffffff', 0.08)}`,
+              }}
+            >
+              <Tabs
+                value={sideTab}
+                onChange={(_, next) => setSideTab(next)}
+                textColor="inherit"
+                indicatorColor="primary"
+                sx={{
+                  mb: 1.25,
+                  '& .MuiTab-root': { color: alpha('#ffffff', 0.75), fontWeight: 900, textTransform: 'none' },
+                  '& .Mui-selected': { color: '#ffffff' },
+                }}
+              >
+                <Tab value="chat" label="Чат" />
+                <Tab value="widgets" label="Виджеты" />
+                <Tab value="materials" label="Материалы" />
+              </Tabs>
+
+              {sideTab === 'chat' ? <ChatPanel sessionId={sessionId} variant="session" /> : null}
+              {sideTab === 'widgets' ? <WidgetsPanel snapshot={widgetsState.pomodoro} localUserName={participantName} send={sendWidgetEvent} /> : null}
+              {sideTab === 'materials' && sessionRoom ? <MaterialsPanel groupId={sessionRoom.group_id} compact /> : null}
+            </Paper>
+          </Box>
+        ) : null}
 
         <Drawer
           anchor="right"

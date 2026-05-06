@@ -1,7 +1,6 @@
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 
 import type { PomodoroDurations, PomodoroStateSnapshot, WidgetsClientEvent } from '../../types/pomodoro';
@@ -75,100 +74,40 @@ export function PomodoroSettingsPanel({
   };
 
   return (
-    <Box sx={{ color: '#f8fbff' }}>
-      <Stack spacing={1.5}>
+    <Paper sx={{ p: 2.5, borderRadius: 3, bgcolor: '#f9fafb' }}>
+      <Stack spacing={2}>
         <Box>
-          <Typography variant="h6" fontWeight={900} sx={{ color: '#ffffff' }}>
-            Pomodoro
-          </Typography>
-          <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.68) }}>
-            Настройка и запуск общего таймера. В сетке отображается отдельной плиткой.
+          <Typography variant="h6">Pomodoro</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+            Таймер остается вторичным инструментом и не перегружает основную встречу.
           </Typography>
         </Box>
 
         {snapshot?.enabled ? (
-          <Alert severity="info" sx={{ borderRadius: 3 }}>
-            Сейчас таймер включён. Управляет: <b>{snapshot.controller.name || '—'}</b>
+          <Alert severity="info">
+            Сейчас таймер включен. Управляет: <b>{snapshot.controller.name || '—'}</b>
           </Alert>
         ) : null}
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<PlayArrowRoundedIcon />}
-            onClick={startClassic}
-            sx={{
-              borderRadius: 3,
-              fontWeight: 900,
-              background: 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)',
-            }}
-          >
+          <Button fullWidth variant="contained" startIcon={<PlayArrowRoundedIcon />} onClick={startClassic}>
             Быстрый 25/5
           </Button>
-          <Button
-            fullWidth
-            variant="outlined"
-            startIcon={<BuildRoundedIcon />}
-            onClick={() => setSettingsOpen(true)}
-            sx={{
-              borderRadius: 3,
-              fontWeight: 800,
-              color: '#ffffff',
-              borderColor: alpha('#ffffff', 0.18),
-              background: alpha('#ffffff', 0.03),
-            }}
-          >
-            Настроить…
+          <Button fullWidth variant="outlined" startIcon={<BuildRoundedIcon />} onClick={() => setSettingsOpen(true)}>
+            Настроить
           </Button>
         </Stack>
 
         {snapshot?.enabled ? (
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <Button
-              fullWidth
-              variant="outlined"
-              disabled={!isController}
-              onClick={() => send({ event: snapshot.running ? 'pomodoro_pause' : 'pomodoro_resume', payload: {} })}
-              sx={{
-                borderRadius: 3,
-                fontWeight: 800,
-                color: '#ffffff',
-                borderColor: alpha('#ffffff', 0.18),
-                background: alpha('#ffffff', 0.03),
-              }}
-            >
+            <Button fullWidth variant="outlined" disabled={!isController} onClick={() => send({ event: snapshot.running ? 'pomodoro_pause' : 'pomodoro_resume', payload: {} })}>
               {snapshot.running ? 'Пауза' : 'Продолжить'}
             </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              disabled={!isController}
-              onClick={() => send({ event: 'pomodoro_skip_phase', payload: {} })}
-              sx={{
-                borderRadius: 3,
-                fontWeight: 800,
-                color: '#ffffff',
-                borderColor: alpha('#ffffff', 0.18),
-                background: alpha('#ffffff', 0.03),
-              }}
-            >
+            <Button fullWidth variant="outlined" disabled={!isController} onClick={() => send({ event: 'pomodoro_skip_phase', payload: {} })}>
               Пропустить этап
             </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              disabled={!isController}
-              onClick={() => send({ event: 'pomodoro_reset', payload: {} })}
-              sx={{
-                borderRadius: 3,
-                fontWeight: 800,
-                color: alpha('#ffffff', 0.9),
-                borderColor: alpha('#ffffff', 0.16),
-                background: alpha('#ffffff', 0.02),
-              }}
-            >
-              Выключить у всех
+            <Button fullWidth variant="outlined" disabled={!isController} onClick={() => send({ event: 'pomodoro_reset', payload: {} })}>
+              Выключить
             </Button>
           </Stack>
         ) : null}
@@ -178,48 +117,17 @@ export function PomodoroSettingsPanel({
         <DialogTitle>Настроить Pomodoro</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Фокус (мин)"
-              type="number"
-              value={focusMin}
-              onChange={(event) => setFocusMin(Number(event.target.value))}
-              inputProps={{ min: 5, max: 180 }}
-              fullWidth
-            />
-            <TextField
-              label="Перерыв (мин)"
-              type="number"
-              value={shortBreakMin}
-              onChange={(event) => setShortBreakMin(Number(event.target.value))}
-              inputProps={{ min: 1, max: 60 }}
-              fullWidth
-            />
-            <TextField
-              label="Длинный перерыв (мин)"
-              type="number"
-              value={longBreakMin}
-              onChange={(event) => setLongBreakMin(Number(event.target.value))}
-              inputProps={{ min: 1, max: 90 }}
-              fullWidth
-            />
-            <TextField
-              label="Длинный перерыв после (циклов)"
-              type="number"
-              value={cyclesBeforeLong}
-              onChange={(event) => setCyclesBeforeLong(Number(event.target.value))}
-              inputProps={{ min: 2, max: 10 }}
-              fullWidth
-            />
+            <TextField label="Фокус (мин)" type="number" value={focusMin} onChange={(event) => setFocusMin(Number(event.target.value))} inputProps={{ min: 5, max: 180 }} fullWidth />
+            <TextField label="Перерыв (мин)" type="number" value={shortBreakMin} onChange={(event) => setShortBreakMin(Number(event.target.value))} inputProps={{ min: 1, max: 60 }} fullWidth />
+            <TextField label="Длинный перерыв (мин)" type="number" value={longBreakMin} onChange={(event) => setLongBreakMin(Number(event.target.value))} inputProps={{ min: 1, max: 90 }} fullWidth />
+            <TextField label="Циклов до длинного перерыва" type="number" value={cyclesBeforeLong} onChange={(event) => setCyclesBeforeLong(Number(event.target.value))} inputProps={{ min: 2, max: 10 }} fullWidth />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSettingsOpen(false)}>Отмена</Button>
-          <Button variant="contained" onClick={startCustom}>
-            Запустить всем
-          </Button>
+          <Button variant="contained" onClick={startCustom}>Запустить</Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </Paper>
   );
 }
-
