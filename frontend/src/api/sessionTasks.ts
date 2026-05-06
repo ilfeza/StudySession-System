@@ -8,6 +8,8 @@ export interface CreateSessionTaskInput {
   assignee_id?: number | null;
   deadline?: string | null;
   status?: SessionTaskStatus;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  required_skills?: string[];
 }
 
 export interface UpdateSessionTaskInput {
@@ -16,6 +18,8 @@ export interface UpdateSessionTaskInput {
   assignee_id?: number | null;
   deadline?: string | null;
   status?: SessionTaskStatus;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  required_skills?: string[];
 }
 
 export async function listSessionTasks(roomId: number) {

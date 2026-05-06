@@ -1,22 +1,40 @@
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import { Alert, Box, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import type { ChatMessage } from '../types';
+import { buildChatSuggestion, type SessionSuggestion } from '../pages/video-session/sessionIntelligence';
+import type { ChatMessage, SessionTask } from '../types';
 
 interface Props {
   sessionId: number;
   variant?: 'default' | 'session';
   showHeader?: boolean;
+  tasks?: SessionTask[];
+  isModerator?: boolean;
+  messages?: ChatMessage[];
+  onMessagesChange?: (messages: ChatMessage[]) => void;
+  onSuggestionCreate?: (suggestion: SessionSuggestion) => void;
+  onSuggestionApply?: (suggestion: SessionSuggestion) => void;
 }
 
-export function ChatPanel({ sessionId, variant = 'default', showHeader = true }: Props) {
+export function ChatPanel({
+  sessionId,
+  variant = 'default',
+  showHeader = true,
+  tasks = [],
+  isModerator = false,
+  messages: externalMessages,
+  onMessagesChange,
+  onSuggestionCreate,
+  onSuggestionApply,
+}: Props) {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(externalMessages ?? []);
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
+  const [suggestionsByMessage, setSuggestionsByMessage] = useState<Record<number, SessionSuggestion>>({});
   const listRef = useRef<HTMLDivElement>(null);
   const isSessionVariant = variant === 'session';
 
@@ -27,8 +45,17 @@ export function ChatPanel({ sessionId, variant = 'default', showHeader = true }:
   }, [sessionId]);
 
   useEffect(() => {
-    api.get<ChatMessage[]>(`/chat/history/${sessionId}`).then((response) => setMessages(response.data));
-  }, [sessionId]);
+    if (externalMessages) {
+      setMessages(externalMessages);
+    }
+  }, [externalMessages]);
+
+  useEffect(() => {
+    api.get<ChatMessage[]>(`/chat/history/${sessionId}`).then((response) => {
+      setMessages(response.data);
+      onMessagesChange?.(response.data);
+    });
+  }, [sessionId, onMessagesChange]);
 
   useEffect(() => {
     const socket = new WebSocket(wsUrl);
@@ -36,26 +63,40 @@ export function ChatPanel({ sessionId, variant = 'default', showHeader = true }:
     socket.onmessage = (event) => {
       const parsed = JSON.parse(event.data);
       if (parsed?.event === 'chat_message') {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: parsed.payload.id,
-            session_id: sessionId,
-            sender_id: parsed.payload.sender_id,
-            sender_name: parsed.payload.sender_name,
-            message: parsed.payload.message,
-            created_at: parsed.payload.created_at,
-          },
-        ]);
+        const nextMessage: ChatMessage = {
+          id: parsed.payload.id,
+          session_id: sessionId,
+          sender_id: parsed.payload.sender_id,
+          sender_name: parsed.payload.sender_name,
+          message: parsed.payload.message,
+          created_at: parsed.payload.created_at,
+        };
+        setMessages((prev) => {
+          const next = [...prev, nextMessage];
+          onMessagesChange?.(next);
+          return next;
+        });
       }
     };
     socket.onerror = () => setError('Не удалось подключиться к чату.');
     return () => socket.close();
-  }, [sessionId, wsUrl]);
+  }, [sessionId, wsUrl, onMessagesChange]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const next: Record<number, SessionSuggestion> = {};
+    messages.forEach((message) => {
+      const suggestion = buildChatSuggestion(message, tasks);
+      if (suggestion && message.id != null) {
+        next[message.id] = suggestion;
+        onSuggestionCreate?.(suggestion);
+      }
+    });
+    setSuggestionsByMessage(next);
+  }, [messages, tasks, onSuggestionCreate]);
 
   function send() {
     if (!value.trim()) {
@@ -86,7 +127,7 @@ export function ChatPanel({ sessionId, variant = 'default', showHeader = true }:
         <Stack spacing={0.5}>
           <Typography variant="h6">{isSessionVariant ? 'Чат встречи' : 'Чат сессии'}</Typography>
           <Typography variant="body2" color="text.secondary">
-            Сообщения команды в одном спокойном потоке.
+            Сообщения команды и AI-подсказки в одном спокойном потоке.
           </Typography>
         </Stack>
       ) : null}
@@ -109,6 +150,7 @@ export function ChatPanel({ sessionId, variant = 'default', showHeader = true }:
         <Stack spacing={1}>
           {messages.map((msg) => {
             const isOwn = (msg.sender_id != null && user?.id === msg.sender_id) || user?.full_name === msg.sender_name;
+            const suggestion = suggestionsByMessage[msg.id];
 
             return (
               <Stack key={msg.id} alignItems={isOwn ? 'flex-end' : 'flex-start'}>
@@ -131,6 +173,17 @@ export function ChatPanel({ sessionId, variant = 'default', showHeader = true }:
                     {msg.message}
                   </Typography>
                 </Box>
+                {suggestion ? (
+                  <Stack direction="row" spacing={1} sx={{ mt: 0.75 }}>
+                    <Chip
+                      label={suggestion.title}
+                      variant="outlined"
+                      onClick={isModerator ? () => onSuggestionApply?.(suggestion) : undefined}
+                      color={isModerator ? 'primary' : 'default'}
+                    />
+                    {!isModerator ? <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>Ожидает модератора</Typography> : null}
+                  </Stack>
+                ) : null}
               </Stack>
             );
           })}
@@ -151,6 +204,12 @@ export function ChatPanel({ sessionId, variant = 'default', showHeader = true }:
           <SendRoundedIcon />
         </IconButton>
       </Stack>
+
+      {isModerator ? (
+        <Button variant="outlined" onClick={() => Object.values(suggestionsByMessage).forEach((item) => onSuggestionApply?.(item))} disabled={!Object.keys(suggestionsByMessage).length}>
+          Confirm AI changes
+        </Button>
+      ) : null}
     </Paper>
   );
 }

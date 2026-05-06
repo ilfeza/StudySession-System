@@ -1,8 +1,8 @@
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
-import TipsAndUpdatesRoundedIcon from '@mui/icons-material/TipsAndUpdatesRounded';
-import { Alert, Avatar, Box, Button, Chip, Drawer, Paper, Snackbar, Stack, Typography } from '@mui/material';
+import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
+import { Alert, Avatar, Badge, Box, Button, Drawer, IconButton, Menu, MenuItem, Paper, Snackbar, Stack, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useParticipants } from '@livekit/components-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -10,23 +10,17 @@ import type { AudioCaptureOptions, VideoCaptureOptions } from 'livekit-client';
 
 import { api } from '../../api/client';
 import { ChatPanel } from '../../components/ChatPanel';
+import { useSessionTasks } from '../../components/tasks/useSessionTasks';
 import { formatMMSS } from '../../components/widgets/pomodoroTime';
 import { useWidgetsSocket } from '../../components/widgets/useWidgetsSocket';
 import type { ChatMessage, VideoSessionRoom } from '../../types';
 import type { SessionStage } from '../../types/pomodoro';
+import { chooseBestParticipant, type SessionNotification, type SessionSuggestion } from './sessionIntelligence';
 import { KanbanBoard } from './components/KanbanBoard';
-import { TabsNavigation, type SessionView } from './components/TabsNavigation';
+import { TopTabs, type SessionView } from './components/TopTabs';
 import { VideoControls } from './components/VideoControls';
 import { VideoGrid } from './components/VideoGrid';
 import { formatRoomName } from './utils';
-
-type OverlayView = 'participants' | 'chat' | null;
-
-const templateLabels: Record<string, string> = {
-  exam_prep: 'Подготовка к экзамену',
-  team_project: 'Командный проект',
-  topic_review: 'Разбор темы',
-};
 
 const stageLabels: Record<SessionStage, string> = {
   discussion: 'Обсуждение',
@@ -38,15 +32,15 @@ const stageOrder: SessionStage[] = ['discussion', 'work', 'summary'];
 
 function getStageTone(stage: SessionStage | null) {
   if (stage === 'discussion') {
-    return { background: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' };
+    return { background: '#eff6ff', color: '#1d4ed8' };
   }
   if (stage === 'work') {
-    return { background: '#ecfdf5', color: '#047857', border: '#a7f3d0' };
+    return { background: '#ecfdf5', color: '#047857' };
   }
   if (stage === 'summary') {
-    return { background: '#fff7ed', color: '#c2410c', border: '#fed7aa' };
+    return { background: '#fff7ed', color: '#c2410c' };
   }
-  return { background: '#f8fafc', color: '#475569', border: '#e2e8f0' };
+  return { background: '#f8fafc', color: '#475569' };
 }
 
 function ParticipantsDrawer({
@@ -76,14 +70,13 @@ function ParticipantsDrawer({
         <Box>
           <Typography variant="h6">Участники</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            В комнате сейчас {participants.length} {participants.length === 1 ? 'человек' : 'участника'}.
+            {participants.length} в комнате
           </Typography>
         </Box>
 
         <Stack spacing={1}>
           {participants.map((participant) => {
             const displayName = participant.name?.trim() || `Участник ${participant.identity}`;
-
             return (
               <Paper key={participant.identity} sx={{ p: 1.5, borderRadius: 3 }}>
                 <Stack direction="row" spacing={1.25} alignItems="center">
@@ -130,13 +123,18 @@ export function MeetingRoomScreen({
   onTrackDeviceError: (message: string) => void;
 }) {
   const participants = useParticipants();
-  const [activeView, setActiveView] = useState<SessionView>('video');
-  const [overlayView, setOverlayView] = useState<OverlayView>(null);
+  const taskController = useSessionTasks(sessionId);
+  const [activeView, setActiveView] = useState<SessionView>('board');
+  const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(false);
+  const [notificationsAnchor, setNotificationsAnchor] = useState<HTMLElement | null>(null);
   const [sessionRoom, setSessionRoom] = useState<VideoSessionRoom | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [taskCreateKey, setTaskCreateKey] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [serverOffsetMs, setServerOffsetMs] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<SessionSuggestion[]>([]);
+  const [notifications, setNotifications] = useState<SessionNotification[]>([]);
   const { state: widgetsState, send: sendWidgetEvent, clearToast } = useWidgetsSocket(sessionId);
 
   useEffect(() => {
@@ -169,222 +167,254 @@ export function MeetingRoomScreen({
     return Math.max(0, Math.floor((serverNow - snapshot.timing.stage_started_at_ms) / 1000));
   }, [nowMs, serverOffsetMs, widgetsState.stage]);
 
-  const sessionDurationMinutes = useMemo(() => {
-    if (!sessionRoom?.starts_at) {
-      return 0;
-    }
-    return Math.max(0, Math.floor((Date.now() - new Date(sessionRoom.starts_at).getTime()) / 60000));
-  }, [nowMs, sessionRoom?.starts_at]);
+  const liveParticipantNames = useMemo(
+    () => participants.map((participant) => participant.name?.trim().toLowerCase()).filter(Boolean) as string[],
+    [participants],
+  );
 
-  const summaryHintVisible = sessionDurationMinutes > 60 && stage !== 'summary';
+  function pushNotification(notification: SessionNotification) {
+    setNotifications((prev) => [...prev.filter((item) => item.id !== notification.id), notification].slice(-8));
+  }
 
-  function handleChangeView(nextView: SessionView) {
-    setActiveView(nextView);
-    if (nextView !== 'video') {
-      setOverlayView(null);
+  function handleSuggestionCreate(suggestion: SessionSuggestion) {
+    setSuggestions((prev) => (prev.some((item) => item.id === suggestion.id) ? prev : [...prev, suggestion].slice(-10)));
+  }
+
+  async function handleSuggestionApply(suggestion: SessionSuggestion) {
+    const task = taskController.tasks.find((item) => item.id === suggestion.taskId);
+    if (suggestion.action === 'mark_done' && suggestion.taskId != null) {
+      await taskController.patchTask(suggestion.taskId, { status: 'done' });
+      pushNotification({ id: `done-${suggestion.id}`, message: `Task marked done: ${task?.title ?? ''}`, severity: 'success' });
     }
+
+    if (suggestion.action === 'assign_sender' && suggestion.taskId != null && suggestion.senderId != null) {
+      await taskController.patchTask(suggestion.taskId, { assignee_id: suggestion.senderId, status: 'in_progress' });
+      pushNotification({ id: `assign-${suggestion.id}`, message: `Task taken from chat: ${task?.title ?? ''}`, severity: 'success' });
+    }
+
+    if (suggestion.action === 'mark_blocked' && suggestion.taskId != null) {
+      await taskController.patchTask(suggestion.taskId, { status: 'blocked' });
+      pushNotification({ id: `blocked-${suggestion.id}`, message: `Task blocked: ${task?.title ?? ''}`, severity: 'warning' });
+    }
+
+    if ((suggestion.action === 'reassign_task' || suggestion.action === 'assign_next') && suggestion.taskId != null) {
+      const participant = chooseBestParticipant(taskController.tasks, taskController.participants, task?.required_skills ?? []);
+      if (participant) {
+        await taskController.patchTask(suggestion.taskId, { assignee_id: participant.id, status: 'todo' });
+        pushNotification({ id: `reassign-${suggestion.id}`, message: `Task reassigned to ${participant.full_name}`, severity: 'success' });
+      }
+    }
+
+    setSuggestions((prev) => prev.filter((item) => item.id !== suggestion.id));
   }
 
   function handleStageChange(nextStage: SessionStage) {
     sendWidgetEvent({ event: 'stage_set', payload: { stage: nextStage } });
+    pushNotification({ id: `stage-${nextStage}-${Date.now()}`, message: `Session phase: ${stageLabels[nextStage]}`, severity: 'info' });
   }
 
-  function handleFinishStage() {
-    if (stage === 'summary') {
-      handleStageChange('summary');
-      return;
-    }
-
+  function handleNextStage() {
     const currentIndex = stage ? stageOrder.indexOf(stage) : -1;
     const nextStage = stageOrder[Math.min(currentIndex + 1, stageOrder.length - 1)];
     handleStageChange(nextStage);
   }
 
+  async function handleReassignAll() {
+    const candidates = taskController.tasks.filter((task) => task.status !== 'done' && (task.assignee_id == null || task.status === 'needs_reassignment'));
+    for (const task of candidates) {
+      const participant = chooseBestParticipant(taskController.tasks, taskController.participants, task.required_skills);
+      if (participant) {
+        await taskController.patchTask(task.id, { assignee_id: participant.id, status: 'todo' });
+      }
+    }
+    pushNotification({ id: `all-${Date.now()}`, message: 'All available tasks reassigned', severity: 'success' });
+  }
+
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: '#f8fafc', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
-      <Stack spacing={2.5}>
+      <Stack spacing={2}>
         {mediaWarning ? (
           <Alert severity="warning" onClose={onDismissMediaWarning}>
             {mediaWarning}
           </Alert>
         ) : null}
 
-        {summaryHintVisible ? (
-          <Alert
-            severity="info"
-            icon={<TipsAndUpdatesRoundedIcon />}
-            action={<Button color="inherit" size="small" onClick={handleFinishStage}>Перейти к итогам</Button>}
-          >
-            Сессия идёт больше часа. Самое время зафиксировать результаты и договориться о следующих шагах.
-          </Alert>
-        ) : null}
-
-        <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 4 }}>
+        <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 4, boxShadow: '0 20px 50px rgba(15, 23, 42, 0.05)' }}>
           <Stack spacing={2}>
-            <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" spacing={2} alignItems={{ xs: 'stretch', lg: 'center' }}>
+            <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" spacing={1.5} alignItems={{ xs: 'stretch', lg: 'center' }}>
               <Stack spacing={1}>
-                <Button
-                  onClick={onBack}
-                  startIcon={<ArrowBackRoundedIcon />}
-                  sx={{ alignSelf: 'flex-start', px: 0, minHeight: 0 }}
-                >
-                  Вернуться к подготовке
+                <Button onClick={onBack} startIcon={<ArrowBackRoundedIcon />} sx={{ alignSelf: 'flex-start', px: 0, minHeight: 0 }}>
+                  Вернуться
                 </Button>
                 <Box>
-                  <Typography variant="h4">
-                    {sessionRoom?.title || formatRoomName(roomName)}
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary" sx={{ mt: 0.75 }}>
-                    Спокойный рабочий интерфейс без боковых панелей: видео, доска и чат доступны по вкладкам.
-                  </Typography>
+                  <Typography variant="h5">{sessionRoom?.title || formatRoomName(roomName)}</Typography>
+                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                    <Typography variant="caption" sx={{ px: 1.25, py: 0.5, borderRadius: 999, bgcolor: stageTone.background, color: stageTone.color }}>
+                      {stage ? stageLabels[stage] : 'Этап не выбран'}
+                    </Typography>
+                    {stageElapsed !== null ? (
+                      <Typography variant="caption" sx={{ px: 1.25, py: 0.5, borderRadius: 999, bgcolor: '#ffffff', color: 'text.secondary', border: '1px solid #e5e7eb' }}>
+                        {formatMMSS(stageElapsed)}
+                      </Typography>
+                    ) : null}
+                    <Typography variant="caption" sx={{ px: 1.25, py: 0.5, borderRadius: 999, bgcolor: '#ffffff', color: 'text.secondary', border: '1px solid #e5e7eb' }}>
+                      {participantName}
+                    </Typography>
+                  </Stack>
                 </Box>
               </Stack>
 
-              <TabsNavigation value={activeView} onChange={handleChangeView} />
-            </Stack>
-
-            <Stack direction={{ xs: 'column', xl: 'row' }} spacing={1.25} justifyContent="space-between" alignItems={{ xs: 'stretch', xl: 'center' }}>
-              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                <Chip label={`${participants.length} в комнате`} />
-                <Chip label={`Вы как ${participantName}`} />
-                {sessionRoom?.template_key ? (
-                  <Chip label={templateLabels[sessionRoom.template_key] ?? sessionRoom.template_key} />
-                ) : null}
-                <Chip
-                  label={stage ? stageLabels[stage] : 'Этап не выбран'}
-                  sx={{
-                    backgroundColor: stageTone.background,
-                    color: stageTone.color,
-                    borderColor: stageTone.border,
-                  }}
-                />
-                {stageElapsed !== null ? <Chip label={`Этап: ${formatMMSS(stageElapsed)}`} /> : null}
-              </Stack>
-
-              {canControlStage ? (
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  {stageOrder.map((item) => (
-                    <Button
-                      key={item}
-                      variant={stage === item ? 'contained' : 'outlined'}
-                      onClick={() => handleStageChange(item)}
-                    >
-                      {stageLabels[item]}
-                    </Button>
-                  ))}
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
+                <TopTabs value={activeView} onChange={setActiveView} />
+                <Stack direction="row" spacing={0.5}>
+                  <IconButton onClick={() => setParticipantsOpen(true)} sx={{ border: '1px solid #e5e7eb', bgcolor: '#ffffff' }}>
+                    <GroupsRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton onClick={(event) => setNotificationsAnchor(event.currentTarget)} sx={{ border: '1px solid #e5e7eb', bgcolor: '#ffffff' }}>
+                    <Badge color="primary" variant="dot" invisible={!notifications.length}>
+                      <NotificationsRoundedIcon fontSize="small" />
+                    </Badge>
+                  </IconButton>
+                  <Button variant="outlined" startIcon={<TuneRoundedIcon />} onClick={() => setControlsOpen(true)}>
+                    Session controls
+                  </Button>
                 </Stack>
-              ) : null}
+              </Stack>
             </Stack>
+
+            {activeView === 'board' ? (
+              <Box sx={{ minHeight: 'calc(100vh - 230px)' }}>
+                <KanbanBoard
+                  sessionId={sessionId}
+                  openCreateKey={taskCreateKey}
+                  sessionTitle={sessionRoom?.title ?? formatRoomName(roomName)}
+                  sessionDescription={sessionRoom?.description ?? ''}
+                  chatMessages={chatMessages}
+                  controller={taskController}
+                  isModerator={canControlStage}
+                  liveParticipantNames={liveParticipantNames}
+                  onNotify={pushNotification}
+                  onEngineSuggestionsChange={(items) => items.forEach(handleSuggestionCreate)}
+                />
+              </Box>
+            ) : null}
+
+            {activeView === 'video' ? (
+              <Paper
+                sx={{
+                  position: 'relative',
+                  minHeight: { xs: 460, md: 'calc(100vh - 250px)' },
+                  overflow: 'hidden',
+                  borderRadius: 5,
+                  background: 'linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)',
+                }}
+              >
+                <VideoGrid />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    left: { xs: 16, md: 24 },
+                    top: { xs: 16, md: 24 },
+                    p: 1.5,
+                    borderRadius: 3,
+                    backgroundColor: alpha('#ffffff', 0.9),
+                    backdropFilter: 'blur(12px)',
+                    boxShadow: '0 14px 36px rgba(15, 23, 42, 0.08)',
+                  }}
+                >
+                  <Typography variant="subtitle2">Комната</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {sessionRoom?.title || formatRoomName(roomName)}
+                  </Typography>
+                </Box>
+                <VideoControls
+                  microphoneCaptureOptions={microphoneCaptureOptions}
+                  cameraCaptureOptions={cameraCaptureOptions}
+                  onTrackDeviceError={onTrackDeviceError}
+                  onParticipantsClick={() => setParticipantsOpen(true)}
+                  onChatClick={() => setActiveView('chat')}
+                />
+              </Paper>
+            ) : null}
+
+            {activeView === 'chat' ? (
+              <Paper sx={{ p: 2, borderRadius: 4, minHeight: 'calc(100vh - 230px)' }}>
+                <ChatPanel
+                  sessionId={sessionId}
+                  variant="session"
+                  tasks={taskController.tasks}
+                  isModerator={canControlStage}
+                  messages={chatMessages}
+                  onMessagesChange={setChatMessages}
+                  onSuggestionCreate={handleSuggestionCreate}
+                  onSuggestionApply={(suggestion) => void handleSuggestionApply(suggestion)}
+                />
+              </Paper>
+            ) : null}
           </Stack>
         </Paper>
 
-        {activeView === 'video' ? (
-          <Stack spacing={2}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
-              <Stack spacing={0.5}>
-                <Typography variant="h6">Видеосессия</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Максимум пространства под участников, быстрые действия вынесены вниз.
-                </Typography>
-              </Stack>
-
-              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                <Button startIcon={<GroupsRoundedIcon />} variant="outlined" onClick={() => setOverlayView('participants')}>
-                  Участники
-                </Button>
-                <Button startIcon={<ChatBubbleOutlineRoundedIcon />} variant="outlined" onClick={() => setOverlayView('chat')}>
-                  Чат
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={() => {
-                    setTaskCreateKey((prev) => prev + 1);
-                    setActiveView('kanban');
-                  }}
-                >
-                  Новая задача
-                </Button>
-              </Stack>
-            </Stack>
-
-            <Paper
-              sx={{
-                position: 'relative',
-                minHeight: { xs: 480, md: 'calc(100vh - 300px)' },
-                overflow: 'hidden',
-                borderRadius: 5,
-                background: 'linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)',
-              }}
-            >
-              <VideoGrid />
-
-              <Box
-                sx={{
-                  position: 'absolute',
-                  left: { xs: 16, md: 24 },
-                  top: { xs: 16, md: 24 },
-                  maxWidth: 320,
-                  p: 1.5,
-                  borderRadius: 3,
-                  backgroundColor: alpha('#ffffff', 0.9),
-                  backdropFilter: 'blur(12px)',
-                  boxShadow: '0 14px 36px rgba(15, 23, 42, 0.08)',
-                }}
-              >
-                <Typography variant="subtitle2">Комната</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {sessionRoom?.title || formatRoomName(roomName)}
-                </Typography>
-              </Box>
-
-              <VideoControls
-                microphoneCaptureOptions={microphoneCaptureOptions}
-                cameraCaptureOptions={cameraCaptureOptions}
-                onTrackDeviceError={onTrackDeviceError}
-                onParticipantsClick={() => setOverlayView('participants')}
-                onChatClick={() => setOverlayView('chat')}
-              />
-            </Paper>
-          </Stack>
-        ) : null}
-
-        {activeView === 'kanban' ? (
-          <Box sx={{ minHeight: 'calc(100vh - 260px)' }}>
-            <KanbanBoard
-              sessionId={sessionId}
-              openCreateKey={taskCreateKey}
-              sessionTitle={sessionRoom?.title ?? formatRoomName(roomName)}
-              sessionDescription={sessionRoom?.description ?? ''}
-              chatMessages={chatMessages}
-            />
-          </Box>
-        ) : null}
-
-        {activeView === 'chat' ? (
-          <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 4, minHeight: 'calc(100vh - 260px)' }}>
-            <ChatPanel sessionId={sessionId} variant="session" />
-          </Paper>
-        ) : null}
-
-        <ParticipantsDrawer open={overlayView === 'participants'} onClose={() => setOverlayView(null)} />
+        <ParticipantsDrawer open={participantsOpen} onClose={() => setParticipantsOpen(false)} />
 
         <Drawer
           anchor="right"
-          open={overlayView === 'chat'}
-          onClose={() => setOverlayView(null)}
-          PaperProps={{
-            sx: {
-              width: '100%',
-              maxWidth: 400,
-              p: 2,
-              backgroundColor: '#ffffff',
-            },
-          }}
+          open={controlsOpen}
+          onClose={() => setControlsOpen(false)}
+          PaperProps={{ sx: { width: '100%', maxWidth: 380, p: 2.5, backgroundColor: '#ffffff' } }}
         >
-          <Paper sx={{ p: 2, borderRadius: 4, height: '100%', minHeight: 0 }}>
-            <ChatPanel sessionId={sessionId} variant="session" showHeader={false} />
-          </Paper>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="h6">Session controls</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Вторичные действия скрыты здесь, чтобы не мешать работе с доской.
+              </Typography>
+            </Box>
+
+            <Stack spacing={1}>
+              <Button variant="contained" onClick={() => handleStageChange(stage ?? 'discussion')} disabled={!canControlStage}>
+                Start phase
+              </Button>
+              <Button variant="outlined" onClick={handleNextStage} disabled={!canControlStage}>
+                Next phase
+              </Button>
+              <Button variant="outlined" onClick={() => void handleReassignAll()} disabled={!canControlStage}>
+                Reassign all
+              </Button>
+              <Button variant="contained" onClick={() => suggestions.forEach((item) => void handleSuggestionApply(item))} disabled={!canControlStage || !suggestions.length}>
+                Confirm AI changes
+              </Button>
+              <Button variant="outlined" onClick={() => { setTaskCreateKey((prev) => prev + 1); setActiveView('board'); }}>
+                Новая задача
+              </Button>
+            </Stack>
+
+            <Stack spacing={1}>
+              <Typography variant="subtitle2">AI suggestions</Typography>
+              {suggestions.length ? suggestions.map((suggestion) => (
+                <MenuItem key={suggestion.id} onClick={() => void handleSuggestionApply(suggestion)} sx={{ border: '1px solid #e5e7eb', borderRadius: 2, whiteSpace: 'normal', alignItems: 'flex-start' }}>
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>{suggestion.title}</Typography>
+                    <Typography variant="caption" color="text.secondary">{suggestion.description}</Typography>
+                  </Box>
+                </MenuItem>
+              )) : (
+                <Typography variant="body2" color="text.secondary">
+                  AI suggestions will appear here.
+                </Typography>
+              )}
+            </Stack>
+          </Stack>
         </Drawer>
+
+        <Menu anchorEl={notificationsAnchor} open={Boolean(notificationsAnchor)} onClose={() => setNotificationsAnchor(null)}>
+          {notifications.length ? notifications.slice().reverse().map((notification) => (
+            <MenuItem key={notification.id} onClick={() => setNotificationsAnchor(null)}>
+              {notification.message}
+            </MenuItem>
+          )) : (
+            <MenuItem disabled>Уведомлений пока нет</MenuItem>
+          )}
+        </Menu>
 
         <Snackbar open={Boolean(widgetsState.lastStartedToast)} autoHideDuration={4500} onClose={clearToast} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
           <Alert severity="success" variant="filled" onClose={clearToast} sx={{ fontWeight: 700 }}>

@@ -1,20 +1,18 @@
-import AnalyticsRoundedIcon from '@mui/icons-material/AnalyticsRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import VideoCallRoundedIcon from '@mui/icons-material/VideoCallRounded';
 import ViewKanbanRoundedIcon from '@mui/icons-material/ViewKanbanRounded';
 import { Box, Tab, Tabs } from '@mui/material';
 import type { ReactElement } from 'react';
 
-export type SessionView = 'video' | 'kanban' | 'chat' | 'analytics';
+export type SessionView = 'video' | 'board' | 'chat';
 
 const tabs: Array<{ value: SessionView; label: string; icon: ReactElement }> = [
   { value: 'video', label: 'Video', icon: <VideoCallRoundedIcon fontSize="small" /> },
+  { value: 'board', label: 'Board', icon: <ViewKanbanRoundedIcon fontSize="small" /> },
   { value: 'chat', label: 'Chat', icon: <ChatBubbleOutlineRoundedIcon fontSize="small" /> },
-  { value: 'kanban', label: 'Tasks', icon: <ViewKanbanRoundedIcon fontSize="small" /> },
-  { value: 'analytics', label: 'Analytics', icon: <AnalyticsRoundedIcon fontSize="small" /> },
 ];
 
-export function TabsNavigation({
+export function TopTabs({
   value,
   onChange,
 }: {
@@ -37,12 +35,8 @@ export function TabsNavigation({
         onChange={(_, next: SessionView) => onChange(next)}
         sx={{
           minHeight: 0,
-          '& .MuiTabs-flexContainer': {
-            gap: 0.5,
-          },
-          '& .MuiTabs-indicator': {
-            display: 'none',
-          },
+          '& .MuiTabs-flexContainer': { gap: 0.5 },
+          '& .MuiTabs-indicator': { display: 'none' },
         }}
       >
         {tabs.map((tab) => (
@@ -53,7 +47,8 @@ export function TabsNavigation({
             iconPosition="start"
             label={tab.label}
             sx={{
-              minHeight: 40,
+              minHeight: 38,
+              px: 1.75,
               borderRadius: 999,
               color: 'text.secondary',
               '&.Mui-selected': {

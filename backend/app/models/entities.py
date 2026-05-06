@@ -42,6 +42,8 @@ class AssignmentStatus(str, enum.Enum):
 class SessionTaskStatus(str, enum.Enum):
     todo = 'todo'
     in_progress = 'in_progress'
+    blocked = 'blocked'
+    needs_reassignment = 'needs_reassignment'
     done = 'done'
 
 

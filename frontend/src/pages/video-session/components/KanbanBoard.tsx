@@ -1,4 +1,6 @@
 import { TaskPanel } from '../../../components/tasks/TaskPanel';
+import type { SessionTasksController } from '../../../components/tasks/useSessionTasks';
+import type { SessionNotification, SessionSuggestion } from '../sessionIntelligence';
 import type { ChatMessage } from '../../../types';
 
 export function KanbanBoard({
@@ -7,12 +9,22 @@ export function KanbanBoard({
   sessionTitle,
   sessionDescription,
   chatMessages,
+  controller,
+  isModerator,
+  liveParticipantNames,
+  onNotify,
+  onEngineSuggestionsChange,
 }: {
   sessionId: number;
   openCreateKey?: number;
   sessionTitle?: string;
   sessionDescription?: string;
   chatMessages?: ChatMessage[];
+  controller?: SessionTasksController;
+  isModerator?: boolean;
+  liveParticipantNames?: string[];
+  onNotify?: (notification: SessionNotification) => void;
+  onEngineSuggestionsChange?: (suggestions: SessionSuggestion[]) => void;
 }) {
   return (
     <TaskPanel
@@ -22,6 +34,11 @@ export function KanbanBoard({
       sessionTitle={sessionTitle}
       sessionDescription={sessionDescription}
       chatMessages={chatMessages}
+      controller={controller}
+      isModerator={isModerator}
+      liveParticipantNames={liveParticipantNames}
+      onNotify={onNotify}
+      onEngineSuggestionsChange={onEngineSuggestionsChange}
     />
   );
 }

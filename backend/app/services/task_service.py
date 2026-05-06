@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models import SessionParticipant, SessionTaskStatus, Task, User, VideoSession
+from app.models import SessionParticipant, SessionTaskStatus, Task, TaskPriority, User, VideoSession
 from app.repositories.task_repository import TaskRepository
 from app.services.assignment_service import AssignmentService
 
@@ -36,12 +36,20 @@ class TaskService:
             session_id=session.id,
             title=payload['title'],
             description=payload.get('description', ''),
+            required_skills=','.join(sorted({skill.strip().lower() for skill in payload.get('required_skills', []) if skill.strip()})),
+            priority=payload.get('priority', TaskPriority.medium),
             deadline=payload.get('deadline'),
             created_by_id=creator.id,
             assignee_id=assignee_id,
             status=status_value,
             is_completed=status_value == SessionTaskStatus.done,
         )
+        if task.assignee_id is None and status_value != SessionTaskStatus.done:
+            suggested = self.assignment_service.pick_session_assignee(session.id, task, online_only=True)
+            if suggested is not None:
+                task.assignee_id = suggested.id
+                if status_value == SessionTaskStatus.needs_reassignment:
+                    task.status = SessionTaskStatus.todo
         return self.repo.create_task(task)
 
     def list_tasks(self, group_id: int):
@@ -78,6 +86,8 @@ class TaskService:
                 value = ','.join(sorted({skill.strip().lower() for skill in value if skill.strip()}))
             if key == 'status' and value is not None:
                 task.is_completed = value == SessionTaskStatus.done
+            if key == 'assignee_id' and value is None and task.status == SessionTaskStatus.done:
+                continue
             setattr(task, key, value)
 
         self.repo.db.commit()

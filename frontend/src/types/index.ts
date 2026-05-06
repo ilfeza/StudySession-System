@@ -59,7 +59,7 @@ export interface Task {
   created_at?: string;
 }
 
-export type SessionTaskStatus = 'todo' | 'in_progress' | 'done';
+export type SessionTaskStatus = 'todo' | 'in_progress' | 'blocked' | 'needs_reassignment' | 'done';
 
 export interface TaskPerson {
   id: number;

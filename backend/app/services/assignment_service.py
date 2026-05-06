@@ -3,7 +3,7 @@
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
-from app.models import AssignmentStatus, GroupMember, SessionParticipant, Task, TaskAssignment, TaskPriority, User
+from app.models import AssignmentStatus, GroupMember, SessionParticipant, SessionTaskStatus, Task, TaskAssignment, TaskPriority, User
 from app.repositories.task_repository import TaskRepository
 
 
@@ -26,6 +26,35 @@ class AssignmentService:
         best_score, best_user = ranked[0]
         assignment = TaskAssignment(task_id=task.id, user_id=best_user.id, score=best_score)
         return self.task_repo.create_assignment(assignment)
+
+    def pick_session_assignee(
+        self,
+        session_id: int,
+        task: Task,
+        *,
+        exclude_user_ids: set[int] | None = None,
+        online_only: bool = False,
+    ) -> User | None:
+        exclude_user_ids = exclude_user_ids or set()
+        query = (
+            self.db.query(SessionParticipant, User)
+            .join(User, User.id == SessionParticipant.user_id)
+            .filter(SessionParticipant.session_id == session_id, User.is_active.is_(True))
+        )
+        if online_only:
+            query = query.filter(SessionParticipant.is_online.is_(True))
+
+        candidates = [user for _, user in query.all() if user.id not in exclude_user_ids]
+        if not candidates and online_only:
+            return self.pick_session_assignee(session_id, task, exclude_user_ids=exclude_user_ids, online_only=False)
+        if not candidates:
+            return None
+
+        ranked = sorted(
+            ((self._session_candidate_score(session_id, user, task), user) for user in candidates),
+            key=lambda item: item[0],
+        )
+        return ranked[0][1]
 
     def reassign_inactive(self, inactivity_minutes: int = 20) -> list[TaskAssignment]:
         threshold = datetime.utcnow() - timedelta(minutes=inactivity_minutes)
@@ -70,6 +99,28 @@ class AssignmentService:
             .filter(GroupMember.group_id == group_id, User.is_active.is_(True))
             .all()
         )
+
+    def _session_candidate_score(self, session_id: int, user: User, task: Task) -> tuple[int, int, str]:
+        active_count = (
+            self.db.query(Task)
+            .filter(
+                Task.session_id == session_id,
+                Task.assignee_id == user.id,
+                Task.status.in_(
+                    [
+                        SessionTaskStatus.todo,
+                        SessionTaskStatus.in_progress,
+                        SessionTaskStatus.blocked,
+                        SessionTaskStatus.needs_reassignment,
+                    ],
+                ),
+            )
+            .count()
+        )
+        user_skills = {skill.strip().lower() for skill in user.skills.split(',') if skill.strip()}
+        task_skills = {skill.strip().lower() for skill in task.required_skills.split(',') if skill.strip()}
+        skill_miss = 0 if not task_skills else len(task_skills - user_skills)
+        return (active_count, skill_miss, user.full_name.lower())
 
     def _candidate_score(self, user: User, task: Task) -> float:
         # Псевдоформула:

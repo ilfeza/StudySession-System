@@ -156,7 +156,7 @@ function MicrophoneMeter({ level, enabled }: { level: number; enabled: boolean }
               width: 5,
               height: 8 + index * 2,
               borderRadius: 99,
-              background: isActive ? 'linear-gradient(180deg, #7fd7ff 0%, #3384ff 100%)' : alpha('#ffffff', 0.12),
+              background: isActive ? 'linear-gradient(180deg, #7fd7ff 0%, #3384ff 100%)' : '#dbe4f0',
               transition: 'background-color 120ms ease, transform 120ms ease',
               transform: isActive ? 'translateY(-1px)' : 'none',
             }}
@@ -228,7 +228,7 @@ export function DeviceSetupScreen({
         minHeight: '100vh',
         px: { xs: 2, md: 3 },
         py: { xs: 2, md: 3 },
-        background: 'radial-gradient(circle at top left, #203868 0%, #08111f 38%, #04070f 100%)',
+        backgroundColor: '#ffffff',
       }}
     >
       <Stack spacing={2.5}>
@@ -237,9 +237,9 @@ export function DeviceSetupScreen({
           startIcon={<ArrowBackRoundedIcon />}
           sx={{
             alignSelf: 'flex-start',
-            color: '#dce8ff',
+            color: '#0f172a',
             px: 0,
-            '&:hover': { backgroundColor: 'transparent', color: '#ffffff' },
+            '&:hover': { backgroundColor: 'transparent', color: '#111827' },
           }}
         >
           К группам
@@ -260,9 +260,9 @@ export function DeviceSetupScreen({
                 minHeight: { xs: 360, md: 560 },
                 overflow: 'hidden',
                 borderRadius: 6,
-                background: 'linear-gradient(160deg, #162237 0%, #08111f 55%, #050913 100%)',
-                border: `1px solid ${alpha('#ffffff', 0.08)}`,
-                boxShadow: '0 32px 80px rgba(0, 0, 0, 0.42)',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e5e7eb',
+                boxShadow: '0 24px 60px rgba(15, 23, 42, 0.08)',
               }}
             >
               {canShowVideo ? (
@@ -287,7 +287,7 @@ export function DeviceSetupScreen({
                     height: '100%',
                     px: 3,
                     textAlign: 'center',
-                    color: '#dce8ff',
+                    color: '#0f172a',
                   }}
                 >
                   <Box
@@ -297,14 +297,14 @@ export function DeviceSetupScreen({
                       display: 'grid',
                       placeItems: 'center',
                       borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #3384ff 0%, #77b6ff 100%)',
-                      color: '#ffffff',
+                      background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+                      color: '#2563eb',
                     }}
                   >
                     <VideocamOffRoundedIcon sx={{ fontSize: 42 }} />
                   </Box>
                   <Typography variant="h5" fontWeight={800}>Проверка устройств</Typography>
-                  <Typography sx={{ maxWidth: 420, color: alpha('#ffffff', 0.72) }}>
+                  <Typography sx={{ maxWidth: 420, color: 'text.secondary' }}>
                     Перед входом можно настроить камеру и микрофон. Экран собран по логике Телемоста:
                     сначала предпросмотр и проверка устройств, потом вход в комнату.
                   </Typography>
@@ -315,7 +315,7 @@ export function DeviceSetupScreen({
                 sx={{
                   position: 'absolute',
                   inset: 0,
-                  background: 'linear-gradient(180deg, rgba(4, 7, 15, 0.02) 0%, rgba(4, 7, 15, 0.55) 100%)',
+                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(15, 23, 42, 0.08) 100%)',
                   pointerEvents: 'none',
                 }}
               />
@@ -329,19 +329,19 @@ export function DeviceSetupScreen({
                   bottom: 20,
                   p: 2,
                   borderRadius: 4,
-                  color: '#ffffff',
-                  background: alpha('#050913', 0.72),
-                  border: `1px solid ${alpha('#ffffff', 0.08)}`,
+                  color: '#0f172a',
+                  background: alpha('#ffffff', 0.92),
+                  border: '1px solid #e5e7eb',
                   backdropFilter: 'blur(18px)',
                 }}
               >
-                <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.65) }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                   Готовность к входу
                 </Typography>
                 <Typography variant="h6" fontWeight={800}>
                   {tokenData.participant_name}
                 </Typography>
-                <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.78) }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   {formatRoomName(tokenData.room_name)}
                 </Typography>
               </Stack>
@@ -356,11 +356,11 @@ export function DeviceSetupScreen({
                 sx={{
                   py: 1.3,
                   borderRadius: 4,
-                  color: '#ffffff',
-                  borderColor: alpha('#ffffff', 0.12),
+                  color: preferences.audioEnabled ? '#ffffff' : '#0f172a',
+                  borderColor: '#d1d5db',
                   background: preferences.audioEnabled
                     ? 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)'
-                    : alpha('#ffffff', 0.04),
+                    : '#ffffff',
                 }}
               >
                 {preferences.audioEnabled ? 'Микрофон включён' : 'Микрофон выключен'}
@@ -373,11 +373,11 @@ export function DeviceSetupScreen({
                 sx={{
                   py: 1.3,
                   borderRadius: 4,
-                  color: '#ffffff',
-                  borderColor: alpha('#ffffff', 0.12),
+                  color: preferences.videoEnabled ? '#ffffff' : '#0f172a',
+                  borderColor: '#d1d5db',
                   background: preferences.videoEnabled
                     ? 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)'
-                    : alpha('#ffffff', 0.04),
+                    : '#ffffff',
                 }}
               >
                 {preferences.videoEnabled ? 'Камера включена' : 'Камера выключена'}
@@ -389,21 +389,21 @@ export function DeviceSetupScreen({
             sx={{
               p: 2.25,
               borderRadius: 6,
-              color: '#ffffff',
-              background: alpha('#08111f', 0.88),
-              border: `1px solid ${alpha('#ffffff', 0.08)}`,
-              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.28)',
+              color: '#0f172a',
+              backgroundColor: '#ffffff',
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 24px 60px rgba(15, 23, 42, 0.08)',
             }}
           >
             <Stack spacing={2}>
               <Box>
-                <Typography variant="overline" sx={{ letterSpacing: 1.2, color: alpha('#ffffff', 0.52) }}>
+                <Typography variant="overline" sx={{ letterSpacing: 1.2, color: 'text.secondary' }}>
                   Настройка
                 </Typography>
                 <Typography variant="h5" fontWeight={800}>
                   Камера и микрофон
                 </Typography>
-                <Typography sx={{ mt: 0.75, color: alpha('#ffffff', 0.72) }}>
+                <Typography sx={{ mt: 0.75, color: 'text.secondary' }}>
                   Выберите устройства перед подключением к видеосессии.
                 </Typography>
               </Box>
@@ -421,8 +421,8 @@ export function DeviceSetupScreen({
                       MenuProps: {
                         PaperProps: {
                           sx: {
-                            backgroundColor: '#08111f',
-                            color: '#ffffff',
+                            backgroundColor: '#ffffff',
+                            color: '#0f172a',
                           },
                         },
                       },
@@ -431,10 +431,10 @@ export function DeviceSetupScreen({
                   sx={{
                     '& .MuiInputBase-root': {
                       borderRadius: 3,
-                      color: '#ffffff',
-                      backgroundColor: alpha('#ffffff', 0.04),
+                      color: '#0f172a',
+                      backgroundColor: '#ffffff',
                     },
-                    '& .MuiInputLabel-root': { color: alpha('#ffffff', 0.65) },
+                    '& .MuiInputLabel-root': { color: 'text.secondary' },
                   }}
                 >
                   {audioDevices.map((device, index) => (
@@ -456,8 +456,8 @@ export function DeviceSetupScreen({
                       MenuProps: {
                         PaperProps: {
                           sx: {
-                            backgroundColor: '#08111f',
-                            color: '#ffffff',
+                            backgroundColor: '#ffffff',
+                            color: '#0f172a',
                           },
                         },
                       },
@@ -466,10 +466,10 @@ export function DeviceSetupScreen({
                   sx={{
                     '& .MuiInputBase-root': {
                       borderRadius: 3,
-                      color: '#ffffff',
-                      backgroundColor: alpha('#ffffff', 0.04),
+                      color: '#0f172a',
+                      backgroundColor: '#ffffff',
                     },
-                    '& .MuiInputLabel-root': { color: alpha('#ffffff', 0.65) },
+                    '& .MuiInputLabel-root': { color: 'text.secondary' },
                   }}
                 >
                   {videoDevices.map((device, index) => (
@@ -484,14 +484,14 @@ export function DeviceSetupScreen({
                 sx={{
                   p: 1.75,
                   borderRadius: 4,
-                  background: alpha('#ffffff', 0.04),
-                  border: `1px solid ${alpha('#ffffff', 0.08)}`,
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e5e7eb',
                 }}
               >
                 <Stack spacing={1.4}>
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Typography fontWeight={700}>Статус камеры</Typography>
-                    <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72) }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                       {videoStatus}
                     </Typography>
                   </Stack>
@@ -500,7 +500,7 @@ export function DeviceSetupScreen({
                     <Typography fontWeight={700}>Статус микрофона</Typography>
                     <MicrophoneMeter level={micLevel} enabled={preferences.audioEnabled && !audioError} />
                   </Stack>
-                  <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.72) }}>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                     {audioStatus}
                   </Typography>
                 </Stack>

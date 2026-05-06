@@ -27,6 +27,12 @@ export function useSessionTasks(sessionId: number) {
     return `${protocol}://${window.location.host}/ws/sessions/${sessionId}/tasks?token=${token}`;
   }, [sessionId]);
 
+  async function refreshParticipants() {
+    const items = await listSessionParticipants(sessionId);
+    setParticipants(items);
+    return items;
+  }
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -115,5 +121,8 @@ export function useSessionTasks(sessionId: number) {
     createTask,
     patchTask,
     removeTask,
+    refreshParticipants,
   };
 }
+
+export type SessionTasksController = ReturnType<typeof useSessionTasks>;
