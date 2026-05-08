@@ -13,7 +13,7 @@ export function getMediaAccessIssue() {
   }
 
   if (window.location.hostname === '0.0.0.0') {
-    return 'Откройте приложение через http://localhost, а не через http://0.0.0.0. Для камеры и микрофона браузер считает localhost защищённым адресом, а 0.0.0.0 — нет.';
+    return 'Откройте приложение через http://localhost, а не через http://0.0.0.0. Для камеры и микрофона браузер считает localhost защищённым адресом, а 0.0.0.0 нет.';
   }
 
   if (!window.isSecureContext) {
@@ -44,7 +44,6 @@ export function formatRoomName(roomName: string) {
   return roomName.replace(/[_-]+/g, ' ').trim();
 }
 
-/** Для системного устройства не передаём deviceId — браузер сам выберет default. */
 export function optionalDeviceId(deviceId: string): ConstrainDOMString | undefined {
   if (!deviceId || deviceId === 'default') {
     return undefined;

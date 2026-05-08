@@ -1,12 +1,13 @@
 import AlternateEmailRoundedIcon from '@mui/icons-material/AlternateEmailRounded';
 import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
@@ -26,13 +27,17 @@ import {
   Stack,
   Switch,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
+import type { PaletteMode } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useThemeMode } from '../context/ThemeModeContext';
 import type { UserProgress, UserRole } from '../types';
 
 function getInitials(fullName: string) {
@@ -151,6 +156,7 @@ function SettingsRow({
 
 export function ProfilePage() {
   const { user, logout } = useAuth();
+  const { mode, setMode } = useThemeMode();
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [error, setError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
@@ -180,7 +186,7 @@ export function ProfilePage() {
           fullName: prev.fullName || response.data.full_name,
           email: prev.email || response.data.email,
           username: prev.username || createUsername(response.data.full_name, response.data.email),
-          bio: prev.bio || 'Собираю задачи, встречи и учебные договоренности в одном рабочем профиле.',
+          bio: prev.bio || 'Собираю задачи, встречи и учебные договорённости в одном рабочем профиле.',
           photoName: prev.photoName,
         }));
       })
@@ -194,9 +200,9 @@ export function ProfilePage() {
   const initials = useMemo(() => getInitials(displayName), [displayName]);
 
   const accountHighlights = [
-    user?.skills?.length ? `${user.skills.length} навыка в профиле` : 'Навыки пока не заполнены',
+    user?.skills?.length ? `${user.skills.length} навыков в профиле` : 'Навыки пока не заполнены',
     `Лимит нагрузки: ${user?.workload_limit ?? 0}`,
-    `Надежность: ${Math.round(user?.reliability_score ?? 0)}%`,
+    `Надёжность: ${Math.round(user?.reliability_score ?? 0)}%`,
   ];
 
   function openEditDialog() {
@@ -204,12 +210,18 @@ export function ProfilePage() {
     setEditOpen(true);
   }
 
+  function handleThemeChange(_: React.MouseEvent<HTMLElement>, nextMode: PaletteMode | null) {
+    if (nextMode) {
+      setMode(nextMode);
+    }
+  }
+
   return (
     <Stack spacing={3}>
       <Box sx={{ px: { xs: 0.5, md: 0 } }}>
         <Typography variant="h4">Профиль</Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 0.75, maxWidth: 720 }}>
-          Управляйте личными данными, настройками аккаунта и учебной активностью в одном аккуратном рабочем пространстве.
+          Управляйте личными данными, настройками аккаунта и учебной активностью в одном аккуратном пространстве.
         </Typography>
       </Box>
 
@@ -328,7 +340,7 @@ export function ProfilePage() {
                           {profileState.photoName ? `Выбран файл: ${profileState.photoName}` : 'Изображение профиля пока не добавлено'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          Здесь оставлен фронтенд-плейсхолдер для будущей загрузки фото без изменения серверной логики.
+                          Пока это локальная настройка интерфейса без отправки на сервер.
                         </Typography>
                       </Stack>
                       <Button component="label" variant="outlined" startIcon={<CameraAltOutlinedIcon />}>
@@ -396,30 +408,35 @@ export function ProfilePage() {
                     action={<Switch checked={weeklyDigestEnabled} onChange={(event) => setWeeklyDigestEnabled(event.target.checked)} />}
                   />
                   <SettingsRow
-                    icon={<PaletteOutlinedIcon fontSize="small" />}
-                    title="Тема интерфейса"
-                    description="Сейчас используется системная тема. Блок оставлен как UI-плейсхолдер."
-                    action={<Chip label="Системная" size="small" />}
+                    icon={mode === 'dark' ? <DarkModeRoundedIcon fontSize="small" /> : <LightModeRoundedIcon fontSize="small" />}
+                    title="Цветовой режим"
+                    description="Переключайте сайт между светлой и тёмной темой."
+                    action={(
+                      <ToggleButtonGroup exclusive value={mode} size="small" onChange={handleThemeChange}>
+                        <ToggleButton value="light">Светлый</ToggleButton>
+                        <ToggleButton value="dark">Тёмный</ToggleButton>
+                      </ToggleButtonGroup>
+                    )}
                   />
                   <SettingsRow
                     icon={<ShieldOutlinedIcon fontSize="small" />}
                     title="Конфиденциальность и вход"
                     description="Проверьте безопасность входа и параметры видимости аккаунта."
-                    action={
+                    action={(
                       <Button color="inherit" onClick={() => setSecurityOpen(true)} endIcon={<ChevronRightRoundedIcon />}>
                         Открыть
                       </Button>
-                    }
+                    )}
                   />
                   <SettingsRow
                     icon={<LogoutRoundedIcon fontSize="small" />}
                     title="Выход из аккаунта"
                     description="Завершить текущую сессию на этом устройстве."
-                    action={
+                    action={(
                       <Button color="inherit" variant="outlined" onClick={logout}>
                         Выйти
                       </Button>
-                    }
+                    )}
                   />
                 </Stack>
               </Paper>
@@ -473,7 +490,7 @@ export function ProfilePage() {
               />
             </Button>
             <Typography variant="caption" color="text.secondary">
-              Изменения применяются только в интерфейсе страницы, пока на сервере нет отдельного обновления профиля.
+              Изменения пока применяются только в интерфейсе страницы.
             </Typography>
           </Stack>
         </DialogContent>
@@ -504,10 +521,10 @@ export function ProfilePage() {
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              Здесь подготовлен UI-блок для смены пароля, управления входом и приватностью. Серверная логика намеренно не менялась.
+              Здесь подготовлен интерфейс для смены пароля и управления входом. Серверную логику я не менял.
             </Typography>
-            <TextField label="Текущий пароль" type="password" fullWidth disabled placeholder="Будет доступно после подключения API" />
-            <TextField label="Новый пароль" type="password" fullWidth disabled placeholder="Будет доступно после подключения API" />
+            <TextField label="Текущий пароль" type="password" fullWidth disabled placeholder="Станет доступно после подключения API" />
+            <TextField label="Новый пароль" type="password" fullWidth disabled placeholder="Станет доступно после подключения API" />
           </Stack>
         </DialogContent>
         <DialogActions>

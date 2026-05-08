@@ -1,14 +1,32 @@
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
+import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
-import { Alert, Avatar, Badge, Box, Button, Divider, Drawer, IconButton, Menu, MenuItem, Paper, Snackbar, Stack, Typography, useMediaQuery } from '@mui/material';
+import { useMediaDevices, useParticipants, useRoomContext } from '@livekit/components-react';
+import {
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Drawer,
+  IconButton,
+  Menu,
+  MenuItem,
+  Paper,
+  Stack,
+  Snackbar,
+  TextField,
+  Typography,
+  useMediaQuery,
+} from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { useParticipants } from '@livekit/components-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 import type { AudioCaptureOptions, VideoCaptureOptions } from 'livekit-client';
 
 import { api } from '../../api/client';
@@ -16,24 +34,25 @@ import { ChatPanel } from '../../components/ChatPanel';
 import { useSessionTasks } from '../../components/tasks/useSessionTasks';
 import { formatMMSS } from '../../components/widgets/pomodoroTime';
 import { useWidgetsSocket } from '../../components/widgets/useWidgetsSocket';
-import type { ChatMessage, VideoSessionRoom } from '../../types';
+import type { ChatMessage, SessionTask, VideoSessionRoom } from '../../types';
 import type { SessionStage } from '../../types/pomodoro';
 import { chooseBestParticipant, type SessionNotification, type SessionSuggestion } from './sessionIntelligence';
+import type { JoinPreferences } from './types';
+import { getDeviceLabel, formatRoomName } from './utils';
 import { KanbanBoard } from './components/KanbanBoard';
 import { TopTabs, type SessionView } from './components/TopTabs';
 import { VideoControls } from './components/VideoControls';
 import { VideoGrid } from './components/VideoGrid';
-import { formatRoomName } from './utils';
 
 const SHELL_PADDING = '16px';
 const SHELL_GAP = '16px';
-const OUTER_RADIUS = '28px';
-const HEADER_RADIUS = '20px';
-const INNER_RADIUS = '20px';
-const CARD_RADIUS = '16px';
-const HEADER_CONTROL_HEIGHT = '44px';
-const HEADER_ICON_SIZE = '44px';
-const CHAT_PANEL_WIDTH = 320;
+const OUTER_RADIUS = '18px';
+const HEADER_RADIUS = '14px';
+const INNER_RADIUS = '14px';
+const CARD_RADIUS = '10px';
+const HEADER_CONTROL_HEIGHT = '40px';
+const HEADER_ICON_SIZE = '40px';
+const SIDEBAR_WIDTH = 340;
 
 const stageLabels: Record<SessionStage, string> = {
   discussion: 'Обсуждение',
@@ -46,9 +65,9 @@ const stageOrder: SessionStage[] = ['discussion', 'work', 'summary'];
 const headerControlSx = {
   height: HEADER_CONTROL_HEIGHT,
   minHeight: HEADER_CONTROL_HEIGHT,
-  px: '16px',
+  px: '14px',
   py: 0,
-  borderRadius: '12px',
+  borderRadius: '10px',
   boxSizing: 'border-box',
   flexShrink: 0,
   display: 'inline-flex',
@@ -60,7 +79,7 @@ const headerControlSx = {
 const headerIconButtonSx = {
   width: HEADER_ICON_SIZE,
   height: HEADER_ICON_SIZE,
-  borderRadius: '12px',
+  borderRadius: '10px',
   border: '1px solid #e5e7eb',
   bgcolor: '#ffffff',
   boxSizing: 'border-box',
@@ -80,90 +99,36 @@ function getStageTone(stage: SessionStage | null) {
   return { background: '#f8fafc', color: '#475569' };
 }
 
-function ParticipantsDrawer({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
-  const participants = useParticipants();
-
-  return (
-    <Drawer
-      anchor="right"
-      open={open}
-      onClose={onClose}
-      PaperProps={{
-        sx: {
-          width: '100%',
-          maxWidth: 360,
-          p: 2,
-          backgroundColor: '#ffffff',
-        },
-      }}
-    >
-      <Stack spacing={2}>
-        <Box>
-          <Typography variant="h6">Участники</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {participants.length} в комнате
-          </Typography>
-        </Box>
-
-        <Stack spacing={1}>
-          {participants.map((participant) => {
-            const displayName = participant.name?.trim() || `Участник ${participant.identity}`;
-            return (
-              <Paper key={participant.identity} sx={{ p: 1.5, borderRadius: CARD_RADIUS }}>
-                <Stack direction="row" spacing={1.25} alignItems="center">
-                  <Avatar sx={{ bgcolor: '#e2e8f0', color: '#0f172a' }}>
-                    {displayName.slice(0, 1).toUpperCase()}
-                  </Avatar>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="subtitle2" noWrap>{displayName}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {participant.isLocal ? 'Вы' : 'В эфире'}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </Paper>
-            );
-          })}
-        </Stack>
-      </Stack>
-    </Drawer>
-  );
+function statusLabel(status: SessionTask['status']) {
+  if (status === 'in_progress') {
+    return 'В работе';
+  }
+  if (status === 'blocked') {
+    return 'Блокер';
+  }
+  if (status === 'needs_reassignment') {
+    return 'Нужно переназначить';
+  }
+  if (status === 'done') {
+    return 'Готово';
+  }
+  return 'К выполнению';
 }
 
-function InlineChatSidebar({
-  sessionId,
-  open,
-  mobile,
-  canControlStage,
-  messages,
-  onMessagesChange,
-  tasks,
-  onClose,
-  onSuggestionCreate,
-  onSuggestionApply,
-}: {
-  sessionId: number;
-  open: boolean;
-  mobile: boolean;
-  canControlStage: boolean;
-  messages: ChatMessage[];
-  onMessagesChange: (messages: ChatMessage[]) => void;
-  tasks: ReturnType<typeof useSessionTasks>['tasks'];
-  onClose: () => void;
-  onSuggestionCreate: (suggestion: SessionSuggestion) => void;
-  onSuggestionApply: (suggestion: SessionSuggestion) => void;
-}) {
-  if (!open) {
-    return null;
-  }
+type SidebarView = 'chat' | 'participants' | 'controls';
 
-  const content = (
+function SidebarShell({
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
     <Paper
       sx={{
         width: '100%',
@@ -180,36 +145,35 @@ function InlineChatSidebar({
         boxSizing: 'border-box',
       }}
     >
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        sx={{ px: '16px', py: '12px', minHeight: '68px', boxSizing: 'border-box' }}
-      >
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: '16px', py: '12px', minHeight: '62px', boxSizing: 'border-box' }}>
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="subtitle1" fontWeight={700}>Чат</Typography>
-          <Typography variant="caption" color="text.secondary">Сообщения прямо внутри звонка</Typography>
+          <Typography variant="subtitle1" fontWeight={700}>{title}</Typography>
+          <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
         </Box>
-        <IconButton onClick={onClose} aria-label="Закрыть чат" sx={{ ...headerIconButtonSx, width: 40, height: 40 }}>
+        <IconButton onClick={onClose} aria-label="Закрыть панель" sx={{ ...headerIconButtonSx, width: 36, height: 36 }}>
           <CloseRoundedIcon fontSize="small" />
         </IconButton>
       </Stack>
       <Divider />
-      <Box sx={{ flex: 1, minHeight: 0, p: '16px', boxSizing: 'border-box' }}>
-        <ChatPanel
-          sessionId={sessionId}
-          variant="session"
-          showHeader={false}
-          tasks={tasks}
-          isModerator={canControlStage}
-          messages={messages}
-          onMessagesChange={onMessagesChange}
-          onSuggestionCreate={onSuggestionCreate}
-          onSuggestionApply={(suggestion) => onSuggestionApply(suggestion)}
-        />
-      </Box>
+      <Box sx={{ flex: 1, minHeight: 0, p: '16px', boxSizing: 'border-box' }}>{children}</Box>
     </Paper>
   );
+}
+
+function InlineSidebar({
+  open,
+  mobile,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  mobile: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  if (!open) {
+    return null;
+  }
 
   if (mobile) {
     return (
@@ -229,7 +193,7 @@ function InlineChatSidebar({
           },
         }}
       >
-        {content}
+        {children}
       </Drawer>
     );
   }
@@ -237,15 +201,197 @@ function InlineChatSidebar({
   return (
     <Box
       sx={{
-        width: `${CHAT_PANEL_WIDTH}px`,
+        width: `${SIDEBAR_WIDTH}px`,
         flexShrink: 0,
         minHeight: 0,
         height: '100%',
         alignSelf: 'stretch',
       }}
     >
-      {content}
+      {children}
     </Box>
+  );
+}
+
+function ParticipantsPanel({ onClose }: { onClose: () => void }) {
+  const participants = useParticipants();
+
+  return (
+    <SidebarShell title="Участники" subtitle={`${participants.length} в комнате`} onClose={onClose}>
+      <Stack spacing={1}>
+        {participants.map((participant) => {
+          const displayName = participant.name?.trim() || `Участник ${participant.identity}`;
+          return (
+            <Paper key={participant.identity} sx={{ p: 1.5, borderRadius: 1.5 }}>
+              <Stack spacing={0.5}>
+                <Typography variant="subtitle2" noWrap>{displayName}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {participant.isLocal ? 'Вы' : 'В эфире'}
+                </Typography>
+              </Stack>
+            </Paper>
+          );
+        })}
+      </Stack>
+    </SidebarShell>
+  );
+}
+
+function SessionControlsPanel({
+  canControlStage,
+  stage,
+  suggestions,
+  onClose,
+  onStageChange,
+  onReassignAll,
+  onApplyAllSuggestions,
+  onCreateTask,
+  onApplySuggestion,
+}: {
+  canControlStage: boolean;
+  stage: SessionStage | null;
+  suggestions: SessionSuggestion[];
+  onClose: () => void;
+  onStageChange: (nextStage: SessionStage) => void;
+  onReassignAll: () => void;
+  onApplyAllSuggestions: () => void;
+  onCreateTask: () => void;
+  onApplySuggestion: (suggestion: SessionSuggestion) => void;
+}) {
+  return (
+    <SidebarShell title="Управление сессией" subtitle="Этапы, задачи и быстрые действия" onClose={onClose}>
+      <Stack spacing={2}>
+        <Stack spacing={1}>
+          <Typography variant="subtitle2">Этап сессии</Typography>
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            {stageOrder.map((item) => (
+              <Button
+                key={item}
+                variant={stage === item ? 'contained' : 'outlined'}
+                onClick={() => onStageChange(item)}
+                disabled={!canControlStage}
+                sx={{ minHeight: 38, px: 1.5 }}
+              >
+                {stageLabels[item]}
+              </Button>
+            ))}
+          </Stack>
+        </Stack>
+
+        <Stack spacing={1}>
+          <Button variant="outlined" onClick={onReassignAll} disabled={!canControlStage}>
+            Перераспределить задачи
+          </Button>
+          <Button variant="contained" onClick={onApplyAllSuggestions} disabled={!canControlStage || !suggestions.length}>
+            Применить AI-подсказки
+          </Button>
+          <Button variant="outlined" onClick={onCreateTask}>
+            Новая задача
+          </Button>
+        </Stack>
+
+        <Stack spacing={1}>
+          <Typography variant="subtitle2">AI-подсказки</Typography>
+          {suggestions.length ? suggestions.map((suggestion) => (
+            <MenuItem key={suggestion.id} onClick={() => onApplySuggestion(suggestion)} sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, whiteSpace: 'normal', alignItems: 'flex-start' }}>
+              <Box>
+                <Typography variant="body2" fontWeight={600}>{suggestion.title}</Typography>
+                <Typography variant="caption" color="text.secondary">{suggestion.description}</Typography>
+              </Box>
+            </MenuItem>
+          )) : (
+            <Typography variant="body2" color="text.secondary">
+              Подсказки появятся здесь по ходу сессии.
+            </Typography>
+          )}
+        </Stack>
+      </Stack>
+    </SidebarShell>
+  );
+}
+
+function DeviceSettingsDialog({
+  open,
+  preferences,
+  onClose,
+  onPreferencesChange,
+}: {
+  open: boolean;
+  preferences: JoinPreferences;
+  onClose: () => void;
+  onPreferencesChange: (patch: Partial<JoinPreferences>) => void;
+}) {
+  const room = useRoomContext();
+  const audioDevices = useMediaDevices({ kind: 'audioinput' });
+  const videoDevices = useMediaDevices({ kind: 'videoinput' });
+  const [deviceError, setDeviceError] = useState('');
+
+  async function handleAudioChange(deviceId: string) {
+    onPreferencesChange({ audioDeviceId: deviceId });
+    setDeviceError('');
+    try {
+      await room.switchActiveDevice('audioinput', deviceId);
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : 'Не удалось переключить микрофон.');
+    }
+  }
+
+  async function handleVideoChange(deviceId: string) {
+    onPreferencesChange({ videoDeviceId: deviceId });
+    setDeviceError('');
+    try {
+      await room.switchActiveDevice('videoinput', deviceId);
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : 'Не удалось переключить камеру.');
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Настройки камеры и микрофона</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Здесь можно выбрать устройства прямо во время сессии и сразу проверить их в комнате.
+          </Typography>
+
+          <TextField
+            select
+            label="Микрофон"
+            value={preferences.audioDeviceId}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => void handleAudioChange(event.target.value)}
+          >
+            {audioDevices.map((device, index) => (
+              <MenuItem key={device.deviceId || `audio-${index}`} value={device.deviceId || 'default'}>
+                {getDeviceLabel(device, 'Микрофон', index)}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            label="Камера"
+            value={preferences.videoDeviceId}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => void handleVideoChange(event.target.value)}
+          >
+            {videoDevices.map((device, index) => (
+              <MenuItem key={device.deviceId || `video-${index}`} value={device.deviceId || 'default'}>
+                {getDeviceLabel(device, 'Камера', index)}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <Paper sx={{ p: 1.5, borderRadius: 1.5, bgcolor: '#f8fafc' }}>
+            <Typography variant="subtitle2">Проверка</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+              После выбора можно сразу включить и выключить камеру или микрофон кнопками под видео.
+            </Typography>
+          </Paper>
+
+          {deviceError ? <Alert severity="warning">{deviceError}</Alert> : null}
+        </Stack>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -259,6 +405,8 @@ export function MeetingRoomScreen({
   onDismissMediaWarning,
   microphoneCaptureOptions,
   cameraCaptureOptions,
+  joinPreferences,
+  onJoinPreferencesChange,
   onTrackDeviceError,
 }: {
   sessionId: number;
@@ -270,6 +418,8 @@ export function MeetingRoomScreen({
   onDismissMediaWarning: () => void;
   microphoneCaptureOptions: AudioCaptureOptions;
   cameraCaptureOptions: VideoCaptureOptions;
+  joinPreferences: JoinPreferences;
+  onJoinPreferencesChange: (patch: Partial<JoinPreferences>) => void;
   onTrackDeviceError: (message: string) => void;
 }) {
   const theme = useTheme();
@@ -277,17 +427,18 @@ export function MeetingRoomScreen({
   const participants = useParticipants();
   const taskController = useSessionTasks(sessionId);
   const [activeView, setActiveView] = useState<SessionView>('video');
-  const [participantsOpen, setParticipantsOpen] = useState(false);
-  const [controlsOpen, setControlsOpen] = useState(false);
+  const [sidebarView, setSidebarView] = useState<SidebarView | null>(null);
   const [notificationsAnchor, setNotificationsAnchor] = useState<HTMLElement | null>(null);
   const [sessionRoom, setSessionRoom] = useState<VideoSessionRoom | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [taskCreateKey, setTaskCreateKey] = useState(0);
+  const [selectedTask, setSelectedTask] = useState<SessionTask | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [serverOffsetMs, setServerOffsetMs] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<SessionSuggestion[]>([]);
   const [notifications, setNotifications] = useState<SessionNotification[]>([]);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
   const { state: widgetsState, send: sendWidgetEvent, clearToast } = useWidgetsSocket(sessionId);
 
   useEffect(() => {
@@ -309,7 +460,7 @@ export function MeetingRoomScreen({
 
   useEffect(() => {
     if (activeView !== 'video') {
-      setChatOpen(false);
+      setSidebarView(null);
     }
   }, [activeView]);
 
@@ -331,8 +482,47 @@ export function MeetingRoomScreen({
     [participants],
   );
 
+  const participantTasks = useMemo(() => {
+    const priorityOrder: Record<string, number> = {
+      in_progress: 0,
+      todo: 1,
+      blocked: 2,
+      needs_reassignment: 3,
+      done: 4,
+    };
+
+    return taskController.tasks.reduce<Record<number, SessionTask>>((acc, task) => {
+      if (!task.assignee_id || task.status === 'done') {
+        return acc;
+      }
+      const existing = acc[task.assignee_id];
+      if (!existing) {
+        acc[task.assignee_id] = task;
+        return acc;
+      }
+      const currentWeight = priorityOrder[task.status] ?? 99;
+      const existingWeight = priorityOrder[existing.status] ?? 99;
+      if (currentWeight < existingWeight || (currentWeight === existingWeight && task.id > existing.id)) {
+        acc[task.assignee_id] = task;
+      }
+      return acc;
+    }, {});
+  }, [taskController.tasks]);
+
   function pushNotification(notification: SessionNotification) {
     setNotifications((prev) => [...prev.filter((item) => item.id !== notification.id), notification].slice(-8));
+    if (!notificationsAnchor) {
+      setUnreadNotifications((prev) => prev + 1);
+    }
+  }
+
+  function toggleSidebar(view: SidebarView) {
+    setSidebarView((prev) => (prev === view ? null : view));
+  }
+
+  function openNotifications(anchor: HTMLElement) {
+    setNotificationsAnchor(anchor);
+    setUnreadNotifications(0);
   }
 
   function handleSuggestionCreate(suggestion: SessionSuggestion) {
@@ -353,7 +543,7 @@ export function MeetingRoomScreen({
 
     if (suggestion.action === 'mark_blocked' && suggestion.taskId != null) {
       await taskController.patchTask(suggestion.taskId, { status: 'blocked' });
-      pushNotification({ id: `blocked-${suggestion.id}`, message: `Задача заблокирована: ${task?.title ?? ''}`, severity: 'warning' });
+      pushNotification({ id: `blocked-${suggestion.id}`, message: `Задача отмечена как заблокированная: ${task?.title ?? ''}`, severity: 'warning' });
     }
 
     if ((suggestion.action === 'reassign_task' || suggestion.action === 'assign_next') && suggestion.taskId != null) {
@@ -372,12 +562,6 @@ export function MeetingRoomScreen({
     pushNotification({ id: `stage-${nextStage}-${Date.now()}`, message: `Этап сессии: ${stageLabels[nextStage]}`, severity: 'info' });
   }
 
-  function handleNextStage() {
-    const currentIndex = stage ? stageOrder.indexOf(stage) : -1;
-    const nextStage = stageOrder[Math.min(currentIndex + 1, stageOrder.length - 1)];
-    handleStageChange(nextStage);
-  }
-
   async function handleReassignAll() {
     const candidates = taskController.tasks.filter((task) => task.status !== 'done' && (task.assignee_id == null || task.status === 'needs_reassignment'));
     for (const task of candidates) {
@@ -386,8 +570,48 @@ export function MeetingRoomScreen({
         await taskController.patchTask(task.id, { assignee_id: participant.id, status: 'todo' });
       }
     }
-    pushNotification({ id: `all-${Date.now()}`, message: 'Все доступные задачи переназначены', severity: 'success' });
+    pushNotification({ id: `all-${Date.now()}`, message: 'Доступные задачи перераспределены', severity: 'success' });
   }
+
+  function openTaskDetails(userId: number) {
+    const task = participantTasks[userId];
+    if (task) {
+      setSelectedTask(task);
+    }
+  }
+
+  const sidebarContent = sidebarView === 'chat' ? (
+    <SidebarShell title="Чат" subtitle="Сообщения прямо внутри звонка" onClose={() => setSidebarView(null)}>
+      <ChatPanel
+        sessionId={sessionId}
+        variant="session"
+        showHeader={false}
+        tasks={taskController.tasks}
+        isModerator={canControlStage}
+        messages={chatMessages}
+        onMessagesChange={setChatMessages}
+        onSuggestionCreate={handleSuggestionCreate}
+        onSuggestionApply={(suggestion) => void handleSuggestionApply(suggestion)}
+      />
+    </SidebarShell>
+  ) : sidebarView === 'participants' ? (
+    <ParticipantsPanel onClose={() => setSidebarView(null)} />
+  ) : sidebarView === 'controls' ? (
+    <SessionControlsPanel
+      canControlStage={canControlStage}
+      stage={stage}
+      suggestions={suggestions}
+      onClose={() => setSidebarView(null)}
+      onStageChange={handleStageChange}
+      onReassignAll={() => void handleReassignAll()}
+      onApplyAllSuggestions={() => suggestions.forEach((item) => void handleSuggestionApply(item))}
+      onCreateTask={() => {
+        setTaskCreateKey((prev) => prev + 1);
+        setActiveView('board');
+      }}
+      onApplySuggestion={(suggestion) => void handleSuggestionApply(suggestion)}
+    />
+  ) : null;
 
   return (
     <Box
@@ -463,33 +687,27 @@ export function MeetingRoomScreen({
                 <Stack direction="row" spacing="8px" alignItems="center" useFlexGap flexWrap="wrap" justifyContent={{ xs: 'flex-start', lg: 'flex-end' }} sx={{ flexShrink: 0 }}>
                   <TopTabs value={activeView} onChange={setActiveView} />
                   {activeView === 'video' ? (
-                    <Button
-                      variant={chatOpen ? 'contained' : 'outlined'}
-                      startIcon={<ForumRoundedIcon />}
-                      onClick={() => setChatOpen((prev) => !prev)}
-                      sx={headerControlSx}
-                    >
-                      {chatOpen ? 'Скрыть чат' : 'Чат'}
-                    </Button>
+                    <>
+                      <IconButton onClick={() => toggleSidebar('participants')} sx={headerIconButtonSx}>
+                        <GroupsRoundedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton onClick={(event) => openNotifications(event.currentTarget)} sx={headerIconButtonSx}>
+                        <Badge color="primary" variant="dot" invisible={!unreadNotifications}>
+                          <NotificationsRoundedIcon fontSize="small" />
+                        </Badge>
+                      </IconButton>
+                      <Button variant={sidebarView === 'controls' ? 'contained' : 'outlined'} startIcon={<TuneRoundedIcon />} onClick={() => toggleSidebar('controls')} sx={headerControlSx}>
+                        Управление
+                      </Button>
+                    </>
                   ) : null}
-                  <IconButton onClick={() => setParticipantsOpen(true)} sx={headerIconButtonSx}>
-                    <GroupsRoundedIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton onClick={(event) => setNotificationsAnchor(event.currentTarget)} sx={headerIconButtonSx}>
-                    <Badge color="primary" variant="dot" invisible={!notifications.length}>
-                      <NotificationsRoundedIcon fontSize="small" />
-                    </Badge>
-                  </IconButton>
-                  <Button variant="outlined" startIcon={<TuneRoundedIcon />} onClick={() => setControlsOpen(true)} sx={headerControlSx}>
-                    Управление
-                  </Button>
                 </Stack>
               </Stack>
             </Paper>
 
             <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', boxSizing: 'border-box' }}>
               {activeView === 'board' ? (
-                <Paper sx={{ height: '100%', borderRadius: INNER_RADIUS, overflow: 'hidden', boxSizing: 'border-box' }}>
+                <Paper sx={{ height: '100%', borderRadius: INNER_RADIUS, overflow: 'hidden', boxSizing: 'border-box', boxShadow: 'none', border: 'none', bgcolor: 'transparent' }}>
                   <KanbanBoard
                     sessionId={sessionId}
                     openCreateKey={taskCreateKey}
@@ -511,7 +729,7 @@ export function MeetingRoomScreen({
                     display: 'grid',
                     gridTemplateColumns: {
                       xs: 'minmax(0, 1fr)',
-                      lg: chatOpen && !isMobileLayout ? `minmax(0, 1fr) ${CHAT_PANEL_WIDTH}px` : 'minmax(0, 1fr)',
+                      lg: sidebarView && !isMobileLayout ? `minmax(0, 1fr) ${SIDEBAR_WIDTH}px` : 'minmax(0, 1fr)',
                     },
                     gap: SHELL_GAP,
                     height: '100%',
@@ -531,8 +749,23 @@ export function MeetingRoomScreen({
                       boxSizing: 'border-box',
                     }}
                   >
-                    <Box sx={{ height: '100%', pb: { xs: '88px', sm: '104px' }, boxSizing: 'border-box' }}>
-                      <VideoGrid chatOpen={chatOpen && !isMobileLayout} />
+                    <Box sx={{ height: '100%', pb: { xs: '84px', sm: '92px' }, boxSizing: 'border-box' }}>
+                      <VideoGrid
+                        chatOpen={sidebarView === 'chat' && !isMobileLayout}
+                        participantTasks={Object.fromEntries(
+                          Object.entries(participantTasks).map(([userId, task]) => [
+                            Number(userId),
+                            task
+                              ? {
+                                  title: task.title,
+                                  description: task.description,
+                                  status: statusLabel(task.status),
+                                }
+                              : undefined,
+                          ]),
+                        )}
+                        onTaskClick={openTaskDetails}
+                      />
                     </Box>
 
                     <Box
@@ -550,16 +783,10 @@ export function MeetingRoomScreen({
                         border: '1px solid rgba(255, 255, 255, 0.1)',
                         boxShadow: '0 14px 36px rgba(15, 23, 42, 0.2)',
                         boxSizing: 'border-box',
-                        '& .MuiTypography-root': {
-                          color: '#ffffff',
-                        },
-                        '& .MuiTypography-body2': {
-                          color: alpha('#ffffff', 0.76),
-                        },
                       }}
                     >
                       <Typography variant="subtitle2">Комната</Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{ color: alpha('#ffffff', 0.76) }}>
                         {sessionRoom?.title || formatRoomName(roomName)}
                       </Typography>
                     </Box>
@@ -568,112 +795,52 @@ export function MeetingRoomScreen({
                       microphoneCaptureOptions={microphoneCaptureOptions}
                       cameraCaptureOptions={cameraCaptureOptions}
                       onTrackDeviceError={onTrackDeviceError}
-                      onParticipantsClick={() => setParticipantsOpen(true)}
-                      onChatClick={() => setChatOpen((prev) => !prev)}
-                      isChatOpen={chatOpen}
+                      onParticipantsClick={() => toggleSidebar('participants')}
+                      onChatClick={() => toggleSidebar('chat')}
+                      onSettingsClick={() => setDeviceSettingsOpen(true)}
+                      isChatOpen={sidebarView === 'chat'}
                     />
                   </Paper>
 
-                  <InlineChatSidebar
-                    sessionId={sessionId}
-                    open={chatOpen}
-                    mobile={isMobileLayout}
-                    canControlStage={canControlStage}
-                    messages={chatMessages}
-                    onMessagesChange={setChatMessages}
-                    tasks={taskController.tasks}
-                    onClose={() => setChatOpen(false)}
-                    onSuggestionCreate={handleSuggestionCreate}
-                    onSuggestionApply={(suggestion) => void handleSuggestionApply(suggestion)}
-                  />
+                  <InlineSidebar open={Boolean(sidebarView)} mobile={isMobileLayout} onClose={() => setSidebarView(null)}>
+                    {sidebarContent}
+                  </InlineSidebar>
                 </Box>
-              ) : null}
-
-              {activeView === 'chat' ? (
-                <Paper sx={{ height: '100%', borderRadius: INNER_RADIUS, p: '16px', overflow: 'hidden', boxSizing: 'border-box' }}>
-                  <Stack spacing="16px" sx={{ height: '100%', minHeight: 0 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Box>
-                        <Typography variant="h6">Чат встречи</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Полноэкранный режим для общения и AI-подсказок.
-                        </Typography>
-                      </Box>
-                      <Button variant="outlined" endIcon={<ChevronRightRoundedIcon />} onClick={() => setActiveView('video')} sx={headerControlSx}>
-                        Вернуться к звонку
-                      </Button>
-                    </Stack>
-                    <Box sx={{ flex: 1, minHeight: 0 }}>
-                      <ChatPanel
-                        sessionId={sessionId}
-                        variant="session"
-                        tasks={taskController.tasks}
-                        isModerator={canControlStage}
-                        messages={chatMessages}
-                        onMessagesChange={setChatMessages}
-                        onSuggestionCreate={handleSuggestionCreate}
-                        onSuggestionApply={(suggestion) => void handleSuggestionApply(suggestion)}
-                      />
-                    </Box>
-                  </Stack>
-                </Paper>
               ) : null}
             </Box>
           </Stack>
         </Paper>
       </Box>
 
-      <ParticipantsDrawer open={participantsOpen} onClose={() => setParticipantsOpen(false)} />
+      <DeviceSettingsDialog
+        open={deviceSettingsOpen}
+        preferences={joinPreferences}
+        onPreferencesChange={onJoinPreferencesChange}
+        onClose={() => setDeviceSettingsOpen(false)}
+      />
 
-      <Drawer
-        anchor="right"
-        open={controlsOpen}
-        onClose={() => setControlsOpen(false)}
-        PaperProps={{ sx: { width: '100%', maxWidth: 380, p: '20px', backgroundColor: '#ffffff', boxSizing: 'border-box' } }}
-      >
-        <Stack spacing={2}>
-          <Box>
-            <Typography variant="h6">Управление сессией</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Дополнительные действия вынесены сюда, чтобы не перегружать основной экран звонка.
-            </Typography>
-          </Box>
-
-          <Stack spacing={1}>
-            <Button variant="contained" onClick={() => handleStageChange(stage ?? 'discussion')} disabled={!canControlStage}>
-              Запустить этап
-            </Button>
-            <Button variant="outlined" onClick={handleNextStage} disabled={!canControlStage}>
-              Следующий этап
-            </Button>
-            <Button variant="outlined" onClick={() => void handleReassignAll()} disabled={!canControlStage}>
-              Переназначить все
-            </Button>
-            <Button variant="contained" onClick={() => suggestions.forEach((item) => void handleSuggestionApply(item))} disabled={!canControlStage || !suggestions.length}>
-              Подтвердить AI-изменения
-            </Button>
-            <Button variant="outlined" onClick={() => { setTaskCreateKey((prev) => prev + 1); setActiveView('board'); }}>
-              Новая задача
-            </Button>
-          </Stack>
-
-          <Stack spacing={1}>
-            <Typography variant="subtitle2">AI-подсказки</Typography>
-            {suggestions.length ? suggestions.map((suggestion) => (
-              <MenuItem key={suggestion.id} onClick={() => void handleSuggestionApply(suggestion)} sx={{ border: '1px solid #e5e7eb', borderRadius: CARD_RADIUS, whiteSpace: 'normal', alignItems: 'flex-start' }}>
-                <Box>
-                  <Typography variant="body2" fontWeight={600}>{suggestion.title}</Typography>
-                  <Typography variant="caption" color="text.secondary">{suggestion.description}</Typography>
-                </Box>
-              </MenuItem>
-            )) : (
+      <Dialog open={Boolean(selectedTask)} onClose={() => setSelectedTask(null)} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TaskAltRoundedIcon fontSize="small" />
+          Подробности задачи
+        </DialogTitle>
+        <DialogContent>
+          {selectedTask ? (
+            <Stack spacing={1.5} sx={{ pt: 1 }}>
+              <Typography variant="h6">{selectedTask.title}</Typography>
               <Typography variant="body2" color="text.secondary">
-                AI-подсказки появятся здесь.
+                Статус: {statusLabel(selectedTask.status)}
               </Typography>
-            )}
-          </Stack>
-        </Stack>
-      </Drawer>
+              <Typography variant="body2" color="text.secondary">
+                Исполнитель: {selectedTask.assignee?.full_name ?? 'Не назначен'}
+              </Typography>
+              <Typography variant="body1">
+                {selectedTask.description || 'Описание пока не добавлено.'}
+              </Typography>
+            </Stack>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Menu anchorEl={notificationsAnchor} open={Boolean(notificationsAnchor)} onClose={() => setNotificationsAnchor(null)}>
         {notifications.length ? notifications.slice().reverse().map((notification) => (

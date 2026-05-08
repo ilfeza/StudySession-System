@@ -60,7 +60,7 @@ export function TaskCard({
           <Chip
             size="small"
             icon={<PersonRoundedIcon />}
-            label={task.assignee?.full_name ?? 'Unassigned'}
+            label={task.assignee?.full_name ?? 'Без исполнителя'}
             sx={{ maxWidth: 170 }}
           />
           <Chip size="small" variant="outlined" label={taskStatusLabels[task.status]} />

@@ -66,7 +66,7 @@ export function TaskCreateForm({
       <TextField label="Название задачи" value={title} onChange={(event) => setTitle(event.target.value)} disabled={disabled || submitting} required />
       <TextField label="Описание" value={description} onChange={(event) => setDescription(event.target.value)} disabled={disabled || submitting} multiline minRows={4} />
       <TextField select label="Исполнитель" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} disabled={disabled || submitting}>
-        <MenuItem value="">Автораспределение</MenuItem>
+        <MenuItem value="">Без исполнителя</MenuItem>
         {participants.map((participant) => (
           <MenuItem key={participant.id} value={String(participant.id)}>
             {participant.full_name}
@@ -74,17 +74,17 @@ export function TaskCreateForm({
         ))}
       </TextField>
       <TextField select label="Статус" value={status} onChange={(event) => setStatus(event.target.value as SessionTaskStatus)} disabled={disabled || submitting}>
-        <MenuItem value="todo">Todo</MenuItem>
-        <MenuItem value="in_progress">In Progress</MenuItem>
-        <MenuItem value="blocked">Blocked</MenuItem>
-        <MenuItem value="needs_reassignment">Needs reassignment</MenuItem>
-        <MenuItem value="done">Done</MenuItem>
+        <MenuItem value="todo">К выполнению</MenuItem>
+        <MenuItem value="in_progress">В работе</MenuItem>
+        <MenuItem value="blocked">Заблокировано</MenuItem>
+        <MenuItem value="needs_reassignment">Нужно переназначить</MenuItem>
+        <MenuItem value="done">Готово</MenuItem>
       </TextField>
       <TextField select label="Приоритет" value={priority} onChange={(event) => setPriority(event.target.value as Task['priority'])} disabled={disabled || submitting}>
-        <MenuItem value="low">Low</MenuItem>
-        <MenuItem value="medium">Medium</MenuItem>
-        <MenuItem value="high">High</MenuItem>
-        <MenuItem value="critical">Critical</MenuItem>
+        <MenuItem value="low">Низкий</MenuItem>
+        <MenuItem value="medium">Средний</MenuItem>
+        <MenuItem value="high">Высокий</MenuItem>
+        <MenuItem value="critical">Критичный</MenuItem>
       </TextField>
       <TextField label="Дедлайн" type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} disabled={disabled || submitting} InputLabelProps={{ shrink: true }} />
       <Button variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={handleSubmit} disabled={disabled || submitting || !title.trim()}>

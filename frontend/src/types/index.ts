@@ -1,4 +1,7 @@
-﻿export type UserRole = 'student' | 'instructor' | 'admin';
+export type UserRole = 'student' | 'instructor' | 'admin';
+export type GroupVisibility = 'public' | 'private';
+export type FriendshipStatus = 'pending' | 'accepted' | 'blocked';
+export type ConversationKind = 'direct' | 'group';
 
 export interface User {
   id: number;
@@ -15,6 +18,8 @@ export interface Group {
   name: string;
   description: string;
   owner_id: number;
+  visibility: GroupVisibility;
+  invite_key: string;
   created_at: string;
 }
 
@@ -43,6 +48,8 @@ export interface VideoSessionRoom {
   livekit_room: string;
 }
 
+export type SessionTaskStatus = 'todo' | 'in_progress' | 'blocked' | 'needs_reassignment' | 'done';
+
 export interface Task {
   id: number;
   group_id: number;
@@ -58,8 +65,6 @@ export interface Task {
   is_completed: boolean;
   created_at?: string;
 }
-
-export type SessionTaskStatus = 'todo' | 'in_progress' | 'blocked' | 'needs_reassignment' | 'done';
 
 export interface TaskPerson {
   id: number;
@@ -97,6 +102,41 @@ export interface ChatMessage {
   sender_id?: number;
   sender_name: string;
   message: string;
+  created_at: string;
+}
+
+export interface UserDirectory {
+  id: number;
+  full_name: string;
+  role: UserRole;
+  is_online: boolean;
+  current_status: string;
+}
+
+export interface Friendship {
+  id: number;
+  user: UserDirectory;
+  status: FriendshipStatus;
+  direction: 'incoming' | 'outgoing';
+  created_at: string;
+}
+
+export interface Conversation {
+  id: number;
+  kind: ConversationKind;
+  title: string;
+  group_id?: number | null;
+  member_names: string[];
+  last_message_preview: string;
+  updated_at: string;
+}
+
+export interface ConversationMessage {
+  id: number;
+  conversation_id: number;
+  sender_id: number;
+  sender_name: string;
+  body: string;
   created_at: string;
 }
 

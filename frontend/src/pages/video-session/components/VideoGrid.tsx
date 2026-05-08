@@ -8,6 +8,8 @@ import { Track } from 'livekit-client';
 
 import { ParticipantTile } from './ParticipantTile';
 
+type ParticipantTaskMap = Record<number, { title: string; description: string; status: string } | undefined>;
+
 function resolveGrid(count: number) {
   if (count <= 1) {
     return { columns: 'minmax(0, 1fr)', rows: 'minmax(0, 1fr)', justifyItems: 'center' } as const;
@@ -27,9 +29,29 @@ function resolveGrid(count: number) {
   return { columns: 'repeat(4, minmax(0, 1fr))', rows: 'repeat(3, minmax(0, 1fr))', justifyItems: 'stretch' } as const;
 }
 
-export function VideoGrid({ chatOpen }: { chatOpen: boolean }) {
+function extractUserId(identity?: string) {
+  if (!identity) {
+    return null;
+  }
+  const prefix = identity.split('-')[0];
+  const parsed = Number(prefix);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function VideoGrid({
+  chatOpen,
+  participantTasks,
+  onTaskClick,
+}: {
+  chatOpen: boolean;
+  participantTasks: ParticipantTaskMap;
+  onTaskClick: (userId: number) => void;
+}) {
   const tracks = useTracks(
-    [{ source: Track.Source.Camera, withPlaceholder: true }],
+    [
+      { source: Track.Source.Camera, withPlaceholder: true },
+      { source: Track.Source.ScreenShare, withPlaceholder: false },
+    ],
     { onlySubscribed: false },
   );
   const pageSize = chatOpen ? 9 : 12;
@@ -61,8 +83,8 @@ export function VideoGrid({ chatOpen }: { chatOpen: boolean }) {
         sx={{
           display: 'grid',
           gap: { xs: 1.25, md: 1.75 },
-          px: { xs: 1.5, md: 2 },
-          py: { xs: 1.5, md: 2 },
+          px: { xs: 2, md: 3 },
+          py: { xs: 2, md: 3 },
           width: '100%',
           height: '100%',
           minHeight: 0,
@@ -73,11 +95,22 @@ export function VideoGrid({ chatOpen }: { chatOpen: boolean }) {
         }}
       >
         {visibleTracks.map((trackRef, index) => {
-          const key = 'participant' in trackRef
-            ? `${trackRef.participant.identity}-${trackRef.source}-${'publication' in trackRef && trackRef.publication ? trackRef.publication.trackSid : 'placeholder'}`
-            : String(index);
+          const key =
+            'participant' in trackRef
+              ? `${trackRef.participant.identity}-${trackRef.source}-${'publication' in trackRef && trackRef.publication ? trackRef.publication.trackSid : 'placeholder'}`
+              : String(index);
+          const userId = 'participant' in trackRef ? extractUserId(trackRef.participant.identity) : null;
+          const task = userId ? participantTasks[userId] : undefined;
 
-          return <ParticipantTile key={key} trackRef={trackRef} single={count === 1} />;
+          return (
+            <ParticipantTile
+              key={key}
+              trackRef={trackRef}
+              single={count === 1}
+              task={task ?? null}
+              onTaskClick={userId ? () => onTaskClick(userId) : undefined}
+            />
+          );
         })}
       </Box>
 

@@ -1,26 +1,39 @@
 import MicOffRoundedIcon from '@mui/icons-material/MicOffRounded';
-import { Box } from '@mui/material';
+import SignalCellularAltRoundedIcon from '@mui/icons-material/SignalCellularAltRounded';
+import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
+import { Box, ButtonBase, Stack, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { ParticipantTile as LiveKitParticipantTile } from '@livekit/components-react';
 import type { ComponentProps } from 'react';
 
+type ParticipantTaskInfo = {
+  title: string;
+  description: string;
+  status: string;
+} | null;
+
 export function ParticipantTile({
   trackRef,
   single,
+  task,
+  onTaskClick,
 }: {
   trackRef: ComponentProps<typeof LiveKitParticipantTile>['trackRef'];
   single: boolean;
+  task?: ParticipantTaskInfo;
+  onTaskClick?: () => void;
 }) {
   return (
     <Box
       sx={{
+        position: 'relative',
         width: '100%',
-        maxWidth: single ? 'min(100%, 1080px)' : '100%',
+        maxWidth: single ? 'min(100%, 980px)' : '100%',
         aspectRatio: '16 / 9',
         overflow: 'hidden',
-        borderRadius: { xs: 4, md: 5 },
+        borderRadius: 2,
         border: '1px solid',
-        borderColor: '#e5e7eb',
+        borderColor: alpha('#e2e8f0', 0.7),
         backgroundColor: '#0f172a',
         boxShadow: '0 18px 45px rgba(15, 23, 42, 0.12)',
         '& .lk-participant-tile': {
@@ -33,7 +46,8 @@ export function ParticipantTile({
         '& .lk-participant-media-video': {
           width: '100%',
           height: '100%',
-          objectFit: 'cover',
+          objectFit: single ? 'contain' : 'cover',
+          backgroundColor: '#020617',
         },
         '& .lk-participant-placeholder': {
           width: '100%',
@@ -43,24 +57,24 @@ export function ParticipantTile({
         '& .lk-participant-metadata': {
           left: 12,
           right: 12,
-          bottom: 12,
+          bottom: 10,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 1,
-          px: 1.5,
-          py: 1,
-          borderRadius: 999,
-          backgroundColor: alpha('#0f172a', 0.72),
-          backdropFilter: 'blur(10px)',
+          px: 0,
+          py: 0,
+          backgroundColor: 'transparent',
         },
         '& .lk-participant-name': {
           color: '#ffffff',
-          fontWeight: 600,
+          fontWeight: 700,
           fontSize: '0.92rem',
+          textShadow: '0 2px 8px rgba(2, 6, 23, 0.72)',
         },
-        '& .lk-audio-indicator': {
-          color: '#ffffff',
+        '& .lk-audio-indicator, & .lk-connection-quality': {
+          color: '#f8fafc',
+          filter: 'drop-shadow(0 2px 6px rgba(2, 6, 23, 0.8))',
         },
         '& .lk-participant-metadata > *:last-child svg': {
           fontSize: 18,
@@ -68,23 +82,93 @@ export function ParticipantTile({
       }}
     >
       <LiveKitParticipantTile trackRef={trackRef} />
+
+      {task ? (
+        <ButtonBase
+          onClick={onTaskClick}
+          sx={{
+            position: 'absolute',
+            left: 10,
+            top: 10,
+            zIndex: 2,
+            maxWidth: 'calc(100% - 20px)',
+            borderRadius: 1.5,
+            overflow: 'hidden',
+            backgroundColor: alpha('#020617', 0.58),
+            border: '1px solid rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(12px)',
+            textAlign: 'left',
+            px: 1.25,
+            py: 0.75,
+            alignItems: 'stretch',
+          }}
+        >
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+            <TaskAltRoundedIcon sx={{ color: '#f8fafc', fontSize: 18, flexShrink: 0 }} />
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: alpha('#ffffff', 0.78),
+                  display: 'block',
+                }}
+              >
+                Текущая задача
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  display: '-webkit-box',
+                  overflow: 'hidden',
+                  WebkitLineClamp: 1,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {task.title}
+              </Typography>
+            </Box>
+          </Stack>
+        </ButtonBase>
+      ) : null}
+
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          width: 32,
+          height: 32,
+          display: 'grid',
+          placeItems: 'center',
+          borderRadius: 1.5,
+          backgroundColor: alpha('#020617', 0.58),
+          color: '#f8fafc',
+          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.16)',
+          border: '1px solid rgba(255,255,255,0.12)',
+        }}
+      >
+        <SignalCellularAltRoundedIcon sx={{ fontSize: 18 }} />
+      </Box>
+
       {trackRef && 'publication' in trackRef && trackRef.publication?.isMuted ? (
         <Box
           sx={{
             position: 'absolute',
-            top: 12,
+            top: task ? 52 : 12,
             right: 12,
-            width: 34,
-            height: 34,
+            width: 32,
+            height: 32,
             display: 'grid',
             placeItems: 'center',
-            borderRadius: '50%',
+            borderRadius: 1.5,
             backgroundColor: alpha('#ffffff', 0.92),
             color: '#b91c1c',
             boxShadow: '0 8px 24px rgba(15, 23, 42, 0.16)',
           }}
         >
-          <MicOffRoundedIcon fontSize="small" />
+          <MicOffRoundedIcon sx={{ fontSize: 18 }} />
         </Box>
       ) : null}
     </Box>

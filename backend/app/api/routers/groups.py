@@ -7,10 +7,12 @@ from app.db.session import get_db
 from app.models import Group
 from app.schemas import (
     GroupCreate,
+    GroupJoinByKey,
     GroupMaterialCreateLink,
     GroupMaterialRead,
     GroupMemberAdd,
     GroupRead,
+    GroupUpdate,
     SessionSummaryHistoryItem,
 )
 from app.services.group_service import GroupService
@@ -38,7 +40,7 @@ def _material_read(material) -> GroupMaterialRead:
 @router.post('', response_model=GroupRead)
 def create_group(payload: GroupCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     service = GroupService(db)
-    group = service.create_group(payload.name, payload.description, user.id)
+    group = service.create_group(payload.name, payload.description, user.id, payload.visibility)
     return GroupRead.model_validate(group)
 
 
@@ -52,6 +54,16 @@ def list_groups(db: Session = Depends(get_db), user=Depends(get_current_user)):
 def catalog(db: Session = Depends(get_db), _=Depends(get_current_user)):
     groups = GroupService(db).list_all_groups()
     return [GroupRead.model_validate(group) for group in groups]
+
+
+@router.post('/join-by-key', response_model=GroupRead)
+def join_by_key(payload: GroupJoinByKey, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    try:
+        membership = GroupService(db).join_group_by_key(payload.invite_key, user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    group = db.get(Group, membership.group_id)
+    return GroupRead.model_validate(group)
 
 
 @router.post('/{group_id}/members')
@@ -71,6 +83,46 @@ def join_group(group_id: int, db: Session = Depends(get_db), user=Depends(get_cu
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {'message': 'Вы успешно вступили в группу.'}
+
+
+@router.post('/{group_id}/leave')
+def leave_group(group_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    group = db.get(Group, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail='Группа не найдена.')
+    if group.owner_id == user.id:
+        raise HTTPException(status_code=400, detail='Владелец не может выйти из своей группы, пока она не удалена.')
+    try:
+        GroupService(db).leave_group(group, user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {'message': 'Вы вышли из группы.'}
+
+
+@router.patch('/{group_id}', response_model=GroupRead)
+def update_group(group_id: int, payload: GroupUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    ensure_moderator(group_id, user, db)
+    group = db.get(Group, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail='Группа не найдена.')
+    updated = GroupService(db).update_group(
+        group,
+        name=payload.name,
+        description=payload.description,
+        visibility=payload.visibility,
+    )
+    return GroupRead.model_validate(updated)
+
+
+@router.delete('/{group_id}')
+def delete_group(group_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    group = db.get(Group, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail='Группа не найдена.')
+    if group.owner_id != user.id and user.role.value != 'admin':
+        raise HTTPException(status_code=403, detail='Удалять группу может только владелец.')
+    GroupService(db).delete_group(group)
+    return {'message': 'Группа удалена.'}
 
 
 @router.get('/{group_id}', response_model=GroupRead)

@@ -128,7 +128,7 @@ export function ChatPanel({
         <Stack spacing={0.5}>
           <Typography variant="h6">{isSessionVariant ? 'Чат встречи' : 'Чат сессии'}</Typography>
           <Typography variant="body2" color="text.secondary">
-            Сообщения команды и AI-подсказки в одном спокойном потоке.
+            Сообщения команды и AI-подсказки в одном потоке.
           </Typography>
         </Stack>
       ) : null}
@@ -202,25 +202,25 @@ export function ChatPanel({
         }}
       >
         <Stack direction="row" spacing={1} alignItems="flex-end">
-        <TextField
-          fullWidth
-          label="Сообщение"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          multiline
-          maxRows={4}
-          placeholder="Напишите короткое сообщение"
-        />
-        <IconButton color="primary" onClick={send} sx={{ width: 44, height: 44, border: '1px solid', borderColor: 'divider', borderRadius: 2, backgroundColor: '#ffffff', boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)', '&:hover': { backgroundColor: '#f8fafc' } }}>
-          <SendRoundedIcon />
-        </IconButton>
+          <TextField
+            fullWidth
+            label="Сообщение"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            multiline
+            maxRows={4}
+            placeholder="Напишите короткое сообщение"
+          />
+          <IconButton color="primary" onClick={send} sx={{ width: 44, height: 44, border: '1px solid', borderColor: 'divider', borderRadius: 2, backgroundColor: '#ffffff', boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)', '&:hover': { backgroundColor: '#f8fafc' } }}>
+            <SendRoundedIcon />
+          </IconButton>
         </Stack>
 
-      {isModerator ? (
-        <Button variant="outlined" onClick={() => Object.values(suggestionsByMessage).forEach((item) => onSuggestionApply?.(item))} disabled={!Object.keys(suggestionsByMessage).length} sx={{ mt: 1 }}>
-          Подтвердить AI-изменения
-        </Button>
-      ) : null}
+        {isModerator ? (
+          <Button variant="outlined" onClick={() => Object.values(suggestionsByMessage).forEach((item) => onSuggestionApply?.(item))} disabled={!Object.keys(suggestionsByMessage).length} sx={{ mt: 1 }}>
+            Применить AI-подсказки
+          </Button>
+        ) : null}
       </Box>
     </Paper>
   );

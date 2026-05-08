@@ -1,28 +1,38 @@
-﻿import os
+import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-os.environ['DATABASE_URL'] = 'sqlite:///./test.db'
+TEST_ROOT = Path(__file__).resolve().parent
+TEST_UPLOADS_DIR = TEST_ROOT / 'test_uploads'
+
+os.environ['DATABASE_URL'] = 'sqlite://'
 os.environ['SECRET_KEY'] = 'test-secret'
+os.environ['UPLOADS_DIR'] = TEST_UPLOADS_DIR.as_posix()
 
 from app.db.base import Base  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
 
+app.router.on_startup.clear()
+app.router.on_shutdown.clear()
 
-TEST_DB_PATH = Path('test.db')
-engine = create_engine('sqlite:///./test.db', connect_args={'check_same_thread': False})
+engine = create_engine(
+    'sqlite://',
+    connect_args={'check_same_thread': False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @pytest.fixture(autouse=True)
 def reset_db():
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
+    TEST_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
@@ -50,3 +60,22 @@ def db_session():
         yield db
     finally:
         db.close()
+
+
+@pytest.fixture()
+def auth_headers(client: TestClient):
+    register = client.post(
+        '/api/auth/register',
+        json={
+            'email': 'member@example.com',
+            'full_name': 'Анна Тестова',
+            'password': 'secret123',
+            'role': 'student',
+            'skills': ['python', 'sql'],
+        },
+    )
+    assert register.status_code == 200
+
+    login = client.post('/api/auth/login', json={'email': 'member@example.com', 'password': 'secret123'})
+    token = login.json()['access_token']
+    return {'Authorization': f'Bearer {token}'}

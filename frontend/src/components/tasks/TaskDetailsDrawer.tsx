@@ -1,5 +1,5 @@
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { Box, Button, Drawer, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 
@@ -71,7 +71,7 @@ export function TaskDetailsDrawer({
     >
       <Stack spacing={2}>
         <Box>
-          <Typography variant="h6">Task details</Typography>
+          <Typography variant="h6">Детали задачи</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Быстрое редактирование без перегрузки самой доски.
           </Typography>
@@ -80,7 +80,7 @@ export function TaskDetailsDrawer({
         <TextField label="Название" value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} />
         <TextField label="Описание" value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} multiline minRows={4} />
         <TextField select label="Исполнитель" value={form.assignee_id} onChange={(event) => setForm((prev) => ({ ...prev, assignee_id: event.target.value }))}>
-          <MenuItem value="">Unassigned</MenuItem>
+          <MenuItem value="">Без исполнителя</MenuItem>
           {participants.map((participant) => (
             <MenuItem key={participant.id} value={String(participant.id)}>
               {participant.full_name}
@@ -88,17 +88,17 @@ export function TaskDetailsDrawer({
           ))}
         </TextField>
         <TextField select label="Статус" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as SessionTaskStatus }))}>
-          <MenuItem value="todo">Todo</MenuItem>
-          <MenuItem value="in_progress">In Progress</MenuItem>
-          <MenuItem value="blocked">Blocked</MenuItem>
-          <MenuItem value="needs_reassignment">Needs reassignment</MenuItem>
-          <MenuItem value="done">Done</MenuItem>
+          <MenuItem value="todo">К выполнению</MenuItem>
+          <MenuItem value="in_progress">В работе</MenuItem>
+          <MenuItem value="blocked">Заблокировано</MenuItem>
+          <MenuItem value="needs_reassignment">Нужно переназначить</MenuItem>
+          <MenuItem value="done">Готово</MenuItem>
         </TextField>
         <TextField select label="Приоритет" value={form.priority} onChange={(event) => setForm((prev) => ({ ...prev, priority: event.target.value as SessionTask['priority'] }))}>
-          <MenuItem value="low">Low</MenuItem>
-          <MenuItem value="medium">Medium</MenuItem>
-          <MenuItem value="high">High</MenuItem>
-          <MenuItem value="critical">Critical</MenuItem>
+          <MenuItem value="low">Низкий</MenuItem>
+          <MenuItem value="medium">Средний</MenuItem>
+          <MenuItem value="high">Высокий</MenuItem>
+          <MenuItem value="critical">Критичный</MenuItem>
         </TextField>
         <TextField label="Дедлайн" type="datetime-local" value={form.deadline} onChange={(event) => setForm((prev) => ({ ...prev, deadline: event.target.value }))} InputLabelProps={{ shrink: true }} />
 
@@ -109,10 +109,10 @@ export function TaskDetailsDrawer({
             onClick={() => task && void onSave(task.id, { ...form, assignee_id: form.assignee_id ? Number(form.assignee_id) : null, deadline: form.deadline || null })}
             disabled={!task || !form.title.trim()}
           >
-            Save changes
+            Сохранить
           </Button>
           <Button variant="outlined" startIcon={<AutorenewRoundedIcon />} onClick={() => task && onReassign(task)} disabled={!task}>
-            Reassign
+            Переназначить
           </Button>
         </Stack>
 
@@ -123,7 +123,7 @@ export function TaskDetailsDrawer({
           onClick={() => task && void onDelete(task.id)}
           disabled={!task}
         >
-          Delete task
+          Удалить задачу
         </Button>
       </Stack>
     </Drawer>

@@ -362,3 +362,4 @@ data/uploads/*
 # Wireframes temp files (if any)
 # wireframes/temp/*
 /wireframes
+/backend/app/tests/artifacts/allure-results

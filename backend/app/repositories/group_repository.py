@@ -1,6 +1,6 @@
-﻿from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session
 
-from app.models import Group, GroupMember
+from app.models import Group, GroupMember, GroupVisibility
 
 
 class GroupRepository:
@@ -24,6 +24,17 @@ class GroupRepository:
 
     def list_all(self):
         return self.db.query(Group).order_by(Group.created_at.desc()).all()
+
+    def list_public(self):
+        return (
+            self.db.query(Group)
+            .filter(Group.visibility == GroupVisibility.public)
+            .order_by(Group.created_at.desc())
+            .all()
+        )
+
+    def get_by_invite_key(self, invite_key: str) -> Group | None:
+        return self.db.query(Group).filter(Group.invite_key == invite_key).first()
 
     def get_member(self, group_id: int, user_id: int) -> GroupMember | None:
         return (

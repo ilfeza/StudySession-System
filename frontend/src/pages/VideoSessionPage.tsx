@@ -57,9 +57,9 @@ export function VideoSessionPage() {
   }, []);
 
   const handleMediaDeviceFailure = useCallback((failure?: MediaDeviceFailure, kind?: MediaDeviceKind) => {
-    const deviceLabel = kind === 'videoinput' ? 'камере' : kind === 'audioinput' ? 'микрофоне' : 'устройстве';
+    const deviceLabel = kind === 'videoinput' ? 'камеру' : kind === 'audioinput' ? 'микрофон' : 'устройство';
     const detail = failure !== undefined ? ` (${failure})` : '';
-    setInMeetingMediaWarning(`Не удалось переключить ${deviceLabel}${detail}. Закройте другие вкладки с камерой и попробуйте снова.`);
+    setInMeetingMediaWarning(`Не удалось переключить ${deviceLabel}${detail}. Закройте другие вкладки с доступом к устройству и попробуйте снова.`);
   }, []);
 
   const handleTrackDeviceError = useCallback((message: string) => {
@@ -135,7 +135,7 @@ export function VideoSessionPage() {
         <Stack spacing={1.25} textAlign="center">
           <Typography variant="h4">Подключаем комнату</Typography>
           <Typography color="text.secondary">
-            Загружаем параметры видеосессии и подготавливаем экран проверки устройств.
+            Загружаем параметры видеосессии и готовим экран проверки устройств.
           </Typography>
         </Stack>
       </Box>
@@ -185,6 +185,8 @@ export function VideoSessionPage() {
         onDismissMediaWarning={() => setInMeetingMediaWarning('')}
         microphoneCaptureOptions={microphoneCaptureDefaults}
         cameraCaptureOptions={cameraCaptureDefaults}
+        joinPreferences={preferences}
+        onJoinPreferencesChange={(patch) => setPreferences((prev) => ({ ...prev, ...patch }))}
         onTrackDeviceError={handleTrackDeviceError}
       />
     </LiveKitRoom>

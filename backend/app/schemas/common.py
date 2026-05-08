@@ -5,7 +5,10 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import (
     AssignmentStatus,
+    ConversationKind,
+    FriendshipStatus,
     GroupMaterialKind,
+    GroupVisibility,
     SessionSummaryStatus,
     SessionTaskStatus,
     TaskPriority,
@@ -44,9 +47,18 @@ class UserRead(BaseModel):
     workload_limit: int
 
 
+class UserDirectoryRead(BaseModel):
+    id: int
+    full_name: str
+    role: UserRole
+    is_online: bool = False
+    current_status: str = ''
+
+
 class GroupCreate(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     description: str = ''
+    visibility: GroupVisibility = GroupVisibility.public
 
 
 class GroupRead(BaseModel):
@@ -56,6 +68,57 @@ class GroupRead(BaseModel):
     name: str
     description: str
     owner_id: int
+    visibility: GroupVisibility
+    invite_key: str = ''
+    created_at: datetime
+
+
+class GroupUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=255)
+    description: str | None = None
+    visibility: GroupVisibility | None = None
+
+
+class GroupJoinByKey(BaseModel):
+    invite_key: str = Field(min_length=4, max_length=32)
+
+
+class FriendshipCreate(BaseModel):
+    user_id: int
+
+
+class FriendshipUpdate(BaseModel):
+    action: str = Field(pattern='^(accept|decline|block)$')
+
+
+class FriendshipRead(BaseModel):
+    id: int
+    user: UserDirectoryRead
+    status: FriendshipStatus
+    direction: str
+    created_at: datetime
+
+
+class ConversationRead(BaseModel):
+    id: int
+    kind: ConversationKind
+    title: str
+    group_id: int | None = None
+    member_names: list[str]
+    last_message_preview: str = ''
+    updated_at: datetime
+
+
+class ConversationMessageCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class ConversationMessageRead(BaseModel):
+    id: int
+    conversation_id: int
+    sender_id: int
+    sender_name: str
+    body: str
     created_at: datetime
 
 

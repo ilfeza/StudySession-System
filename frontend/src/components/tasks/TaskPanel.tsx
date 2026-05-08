@@ -5,10 +5,7 @@ import { Alert, Button, Dialog, DialogContent, DialogTitle, IconButton, Menu, Me
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 
 import { generateAiTasks } from '../../api/ai';
-import type { SessionTasksController } from './useSessionTasks';
 import type { AiTaskSuggestion, ChatMessage, SessionParticipant, SessionTask, SessionTaskStatus } from '../../types';
-import { TaskCreateForm } from './TaskCreateForm';
-import { useSessionTasks } from './useSessionTasks';
 import {
   chooseBestParticipant,
   getTaskAgeMinutes,
@@ -18,13 +15,15 @@ import {
 import { BoardHeader } from './BoardHeader';
 import { KanbanColumn } from './KanbanColumn';
 import { TaskCard } from './TaskCard';
+import { TaskCreateForm } from './TaskCreateForm';
 import { TaskDetailsDrawer } from './TaskDetailsDrawer';
+import { useSessionTasks, type SessionTasksController } from './useSessionTasks';
 
 const columnConfig: Array<{ status: 'todo' | 'in_progress' | 'blocked' | 'done'; title: string; emptyLabel: string }> = [
-  { status: 'todo', title: 'Todo', emptyLabel: 'Добавьте первую задачу' },
-  { status: 'in_progress', title: 'In Progress', emptyLabel: 'Здесь появятся задачи в работе' },
-  { status: 'blocked', title: 'Blocked', emptyLabel: 'Заблокированных задач нет' },
-  { status: 'done', title: 'Done', emptyLabel: 'Завершённые задачи появятся здесь' },
+  { status: 'todo', title: 'К выполнению', emptyLabel: 'Добавьте первую задачу' },
+  { status: 'in_progress', title: 'В работе', emptyLabel: 'Здесь появятся задачи в работе' },
+  { status: 'blocked', title: 'Заблокировано', emptyLabel: 'Заблокированных задач пока нет' },
+  { status: 'done', title: 'Готово', emptyLabel: 'Завершённые задачи появятся здесь' },
 ];
 
 interface EditableAiTask extends AiTaskSuggestion {
@@ -91,9 +90,11 @@ export function TaskPanel({
   const previousStatusRef = useRef<Map<number, SessionTaskStatus>>(new Map());
   const handledBlockedRef = useRef<Set<number>>(new Set());
   const handledOfflineRef = useRef<Set<string>>(new Set());
+  const lastHandledCreateKeyRef = useRef(0);
 
   useEffect(() => {
-    if (openCreateKey > 0) {
+    if (openCreateKey > 0 && openCreateKey !== lastHandledCreateKeyRef.current) {
+      lastHandledCreateKeyRef.current = openCreateKey;
       setCreateOpen(true);
     }
   }, [openCreateKey]);
@@ -146,8 +147,8 @@ export function TaskPanel({
             source: 'engine',
             action: 'assign_next',
             taskId: nextTask.id,
-            title: 'Next task is ready',
-            description: `"${nextTask.title}" можно сразу назначить следующему участнику.`,
+            title: 'Готова следующая задача',
+            description: `Задачу "${nextTask.title}" можно сразу отдать следующему участнику.`,
           });
           onNotify?.({ id: `done-${task.id}`, message: `Следующая задача готова: ${nextTask.title}`, severity: 'info' });
         }
@@ -163,8 +164,8 @@ export function TaskPanel({
           source: 'engine',
           action: 'reassign_task',
           taskId: task.id,
-          title: 'Task may need help',
-          description: `"${task.title}" долго не двигается. Можно перепоручить или снять блокер.`,
+          title: 'Задаче нужна помощь',
+          description: `Задача "${task.title}" давно не двигается. Возможно, стоит помочь или переназначить её.`,
         });
         onNotify?.({ id: `stale-toast-${task.id}`, message: `Проверьте задачу: ${task.title}`, severity: 'warning' });
       }
@@ -199,7 +200,7 @@ export function TaskPanel({
 
       onNotify?.({
         id: `offline-${participant.id}`,
-        message: `${participant.full_name} left session, ${affectedTasks.length} task(s) need reassignment`,
+        message: `${participant.full_name} вышел из сессии, ${affectedTasks.length} задач(и) нужно переназначить`,
         severity: 'warning',
       });
 
@@ -214,8 +215,8 @@ export function TaskPanel({
           source: 'engine' as const,
           action: 'reassign_task' as const,
           taskId: task.id,
-          title: 'Needs reassignment',
-          description: `"${task.title}" осталось без исполнителя.`,
+          title: 'Нужно переназначение',
+          description: `Задача "${task.title}" осталась без исполнителя.`,
         })),
       ].slice(-8));
     });
@@ -243,7 +244,7 @@ export function TaskPanel({
     try {
       const generated = await generateAiTasks({
         roomId: sessionId,
-        roomTitle: sessionTitle || 'Study session',
+        roomTitle: sessionTitle || 'Учебная сессия',
         description: sessionDescription,
         messages: chatMessages,
       });
@@ -285,7 +286,7 @@ export function TaskPanel({
       }
       setAiOpen(false);
       setAiTasks([]);
-      onNotify?.({ id: `ai-saved-${Date.now()}`, message: 'AI tasks created', severity: 'success' });
+      onNotify?.({ id: `ai-saved-${Date.now()}`, message: 'AI-задачи добавлены на доску', severity: 'success' });
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Не удалось сохранить задачи.');
     } finally {
@@ -305,7 +306,7 @@ export function TaskPanel({
     }
 
     await patchTask(task.id, { assignee_id: nextParticipant.id, status: 'todo' });
-    onNotify?.({ id: `reassigned-${task.id}`, message: `Task reassigned to ${nextParticipant.full_name}`, severity: 'success' });
+    onNotify?.({ id: `reassigned-${task.id}`, message: `Задача назначена: ${nextParticipant.full_name}`, severity: 'success' });
     setEngineSuggestions((prev) => prev.filter((item) => item.taskId !== task.id));
   }
 
@@ -321,7 +322,7 @@ export function TaskPanel({
     const nextAssignee = participants.find((participant) => participant.id === nextAssigneeId);
     onNotify?.({
       id: `manual-reassign-${reassigningTask.id}`,
-      message: nextAssignee ? `Task reassigned to ${nextAssignee.full_name}` : 'Task marked for reassignment',
+      message: nextAssignee ? `Задача переназначена: ${nextAssignee.full_name}` : 'Задача отмечена для переназначения',
       severity: 'success',
     });
     setReassigningTask(null);
@@ -351,9 +352,10 @@ export function TaskPanel({
           display: 'flex',
           flexDirection: 'column',
           gap: 2,
-          borderRadius: 4,
-          backgroundColor: '#ffffff',
-          boxShadow: '0 20px 50px rgba(15, 23, 42, 0.05)',
+          borderRadius: 0,
+          border: 'none',
+          backgroundColor: 'transparent',
+          boxShadow: 'none',
         }}
       >
         <BoardHeader
@@ -369,11 +371,11 @@ export function TaskPanel({
         {error ? <Alert severity="warning">{error}</Alert> : null}
 
         {!loading && tasks.length === 0 ? (
-          <Paper sx={{ p: 5, borderRadius: 4, border: '1px dashed #dbe2ea', textAlign: 'center', bgcolor: '#fcfcfd' }}>
+          <Paper sx={{ p: 5, borderRadius: 2.5, border: '1px dashed #dbe2ea', textAlign: 'center', bgcolor: '#fcfcfd', boxShadow: 'none' }}>
             <Stack spacing={1.5} alignItems="center">
               <Typography variant="h6">Задач пока нет</Typography>
-              <Button variant="contained" onClick={() => { setAiOpen(true); void requestAiTasks(); }}>
-                Generate tasks with AI
+              <Button variant="contained" onClick={() => setCreateOpen(true)}>
+                Создать первую задачу
               </Button>
             </Stack>
           </Paper>
@@ -425,7 +427,7 @@ export function TaskPanel({
             void requestAiTasks();
           }}
         >
-          Generate tasks with AI
+          Сгенерировать задачи через AI
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -437,7 +439,7 @@ export function TaskPanel({
             });
           }}
         >
-          Apply AI suggestions
+          Применить AI-подсказки
         </MenuItem>
       </Menu>
 
@@ -462,7 +464,7 @@ export function TaskPanel({
                   onChange={(event) => setReassignAssigneeId(event.target.value)}
                   style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid #d1d5db', background: '#fff' }}
                 >
-                  <option value="">Needs reassignment</option>
+                  <option value="">Нужно переназначить</option>
                   {participants.map((participant) => (
                     <option key={participant.id} value={String(participant.id)}>
                       {participant.full_name}
@@ -480,16 +482,16 @@ export function TaskPanel({
       </Dialog>
 
       <Dialog open={aiOpen} onClose={() => !aiLoading && !aiSaving && setAiOpen(false)} fullWidth maxWidth="md">
-        <DialogTitle>AI actions</DialogTitle>
+        <DialogTitle>AI-действия</DialogTitle>
         <DialogContent>
           <Stack spacing={2}>
             {aiError ? <Alert severity="warning">{aiError}</Alert> : null}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void requestAiTasks()} disabled={aiLoading || aiSaving}>
-                Regenerate
+                Сгенерировать заново
               </Button>
               <Button variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={() => void handleConfirmAiTasks()} disabled={aiLoading || aiSaving || aiTasks.length === 0}>
-                Save to board
+                Сохранить на доску
               </Button>
             </Stack>
 
@@ -501,7 +503,7 @@ export function TaskPanel({
                 <Paper key={task.localId} sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
                   <Stack spacing={1.25}>
                     <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="center">
-                      <Typography variant="subtitle2">AI suggestion</Typography>
+                      <Typography variant="subtitle2">Предложение AI</Typography>
                       <IconButton onClick={() => setAiTasks((prev) => prev.filter((item) => item.localId !== task.localId))} disabled={aiSaving} size="small">
                         <DeleteOutlineRoundedIcon fontSize="small" />
                       </IconButton>

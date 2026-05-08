@@ -3,15 +3,7 @@ import MicOffRoundedIcon from '@mui/icons-material/MicOffRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import VideocamOffRoundedIcon from '@mui/icons-material/VideocamOffRounded';
 import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
-import {
-  Box,
-  Button,
-  MenuItem,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Box, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useMediaDevices } from '@livekit/components-react';
 import { useEffect, useRef, useState } from 'react';
@@ -19,7 +11,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { JoinPreferences, TokenResponse } from './types';
 import { formatRoomName, getDeviceLabel, getMediaAccessIssue } from './utils';
 
-/** Предпросмотр через getUserMedia: корректно пересоздаёт поток при вкл/выкл камеры и смене устройств. */
 function usePreviewMediaStream(preferences: JoinPreferences, canUseMediaApi: boolean) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -207,9 +198,7 @@ export function DeviceSetupScreen({
     };
   }, [previewStream, preferences.videoEnabled]);
 
-  const hasLiveVideo = Boolean(
-    previewStream?.getVideoTracks().some((track) => track.readyState === 'live'),
-  );
+  const hasLiveVideo = Boolean(previewStream?.getVideoTracks().some((track) => track.readyState === 'live'));
   const canShowVideo = preferences.videoEnabled && !videoError && hasLiveVideo;
   const videoStatus = !preferences.videoEnabled
     ? 'Камера выключена перед входом'
@@ -250,25 +239,26 @@ export function DeviceSetupScreen({
             display: 'grid',
             gap: 2.5,
             alignItems: 'stretch',
-            gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.5fr) minmax(320px, 420px)' },
+            gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.45fr) minmax(320px, 420px)' },
           }}
         >
           <Stack spacing={2}>
             <Paper
               sx={{
                 position: 'relative',
-                minHeight: { xs: 360, md: 560 },
+                minHeight: { xs: 340, md: 520 },
                 overflow: 'hidden',
-                borderRadius: 6,
+                borderRadius: 3,
                 backgroundColor: '#ffffff',
                 border: '1px solid #e5e7eb',
                 boxShadow: '0 24px 60px rgba(15, 23, 42, 0.08)',
                 '& .device-setup-preview-video': {
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
+                  objectFit: 'contain',
                   transform: 'scaleX(-1)',
                   display: 'block',
+                  backgroundColor: '#020617',
                 },
               }}
             >
@@ -307,8 +297,7 @@ export function DeviceSetupScreen({
                   </Box>
                   <Typography variant="h5" fontWeight={800}>Проверка устройств</Typography>
                   <Typography sx={{ maxWidth: 420, color: 'text.secondary' }}>
-                    Перед входом можно настроить камеру и микрофон. Экран собран по логике Телемоста:
-                    сначала предпросмотр и проверка устройств, потом вход в комнату.
+                    Перед входом можно настроить камеру и микрофон. Сначала проверяете устройства, потом входите в комнату.
                   </Typography>
                 </Stack>
               )}
@@ -330,7 +319,7 @@ export function DeviceSetupScreen({
                   right: 20,
                   bottom: 20,
                   p: 2,
-                  borderRadius: 4,
+                  borderRadius: 2.5,
                   color: '#0f172a',
                   background: alpha('#ffffff', 0.92),
                   border: '1px solid #e5e7eb',
@@ -357,7 +346,7 @@ export function DeviceSetupScreen({
                 onClick={() => onPreferencesChange({ audioEnabled: !preferences.audioEnabled })}
                 sx={{
                   py: 1.3,
-                  borderRadius: 4,
+                  borderRadius: 2.5,
                   color: preferences.audioEnabled ? '#ffffff' : '#0f172a',
                   borderColor: '#d1d5db',
                   background: preferences.audioEnabled
@@ -374,7 +363,7 @@ export function DeviceSetupScreen({
                 onClick={() => onPreferencesChange({ videoEnabled: !preferences.videoEnabled })}
                 sx={{
                   py: 1.3,
-                  borderRadius: 4,
+                  borderRadius: 2.5,
                   color: preferences.videoEnabled ? '#ffffff' : '#0f172a',
                   borderColor: '#d1d5db',
                   background: preferences.videoEnabled
@@ -390,7 +379,7 @@ export function DeviceSetupScreen({
           <Paper
             sx={{
               p: 2.25,
-              borderRadius: 6,
+              borderRadius: 3,
               color: '#0f172a',
               backgroundColor: '#ffffff',
               border: '1px solid #e5e7eb',
@@ -432,7 +421,7 @@ export function DeviceSetupScreen({
                   }}
                   sx={{
                     '& .MuiInputBase-root': {
-                      borderRadius: 3,
+                      borderRadius: 2,
                       color: '#0f172a',
                       backgroundColor: '#ffffff',
                     },
@@ -467,7 +456,7 @@ export function DeviceSetupScreen({
                   }}
                   sx={{
                     '& .MuiInputBase-root': {
-                      borderRadius: 3,
+                      borderRadius: 2,
                       color: '#0f172a',
                       backgroundColor: '#ffffff',
                     },
@@ -485,7 +474,7 @@ export function DeviceSetupScreen({
               <Paper
                 sx={{
                   p: 1.75,
-                  borderRadius: 4,
+                  borderRadius: 2.5,
                   backgroundColor: '#f8fafc',
                   border: '1px solid #e5e7eb',
                 }}
@@ -509,13 +498,13 @@ export function DeviceSetupScreen({
               </Paper>
 
               {videoError ? (
-                <Typography variant="body2" sx={{ color: '#ffb4b4' }}>
+                <Typography variant="body2" sx={{ color: '#dc2626' }}>
                   {videoError.message}
                 </Typography>
               ) : null}
 
               {roomError ? (
-                <Typography variant="body2" sx={{ color: '#ffb4b4' }}>
+                <Typography variant="body2" sx={{ color: '#dc2626' }}>
                   {roomError}
                 </Typography>
               ) : null}
@@ -531,7 +520,7 @@ export function DeviceSetupScreen({
                 })}
                 sx={{
                   py: 1.6,
-                  borderRadius: 4.5,
+                  borderRadius: 3,
                   fontWeight: 800,
                   background: 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)',
                   boxShadow: '0 16px 30px rgba(29, 110, 255, 0.35)',

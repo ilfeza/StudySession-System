@@ -25,6 +25,22 @@ class UserRole(str, enum.Enum):
     admin = 'admin'
 
 
+class GroupVisibility(str, enum.Enum):
+    public = 'public'
+    private = 'private'
+
+
+class FriendshipStatus(str, enum.Enum):
+    pending = 'pending'
+    accepted = 'accepted'
+    blocked = 'blocked'
+
+
+class ConversationKind(str, enum.Enum):
+    direct = 'direct'
+    group = 'group'
+
+
 class TaskPriority(str, enum.Enum):
     low = 'low'
     medium = 'medium'
@@ -78,6 +94,10 @@ class User(Base):
     assigned_tasks: Mapped[list[Task]] = relationship('Task', back_populates='assignee', foreign_keys='Task.assignee_id')
     announcements: Mapped[list['GroupAnnouncement']] = relationship('GroupAnnouncement', back_populates='author')
     session_participations: Mapped[list['SessionParticipant']] = relationship('SessionParticipant', back_populates='user')
+    sent_friendships: Mapped[list['Friendship']] = relationship('Friendship', foreign_keys='Friendship.requester_id', back_populates='requester')
+    received_friendships: Mapped[list['Friendship']] = relationship('Friendship', foreign_keys='Friendship.addressee_id', back_populates='addressee')
+    conversation_memberships: Mapped[list['ConversationMember']] = relationship('ConversationMember', back_populates='user')
+    conversation_messages: Mapped[list['ConversationMessage']] = relationship('ConversationMessage', back_populates='sender')
 
 
 class Group(Base):
@@ -87,6 +107,8 @@ class Group(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, default='', nullable=False)
     owner_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    visibility: Mapped[GroupVisibility] = mapped_column(Enum(GroupVisibility), default=GroupVisibility.public, nullable=False)
+    invite_key: Mapped[str] = mapped_column(String(32), default='', nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     owner: Mapped[User] = relationship('User', back_populates='created_groups')
@@ -103,6 +125,7 @@ class Group(Base):
         back_populates='group',
         cascade='all, delete-orphan',
     )
+    conversations: Mapped[list['Conversation']] = relationship('Conversation', back_populates='group')
 
 
 class GroupAnnouncement(Base):
@@ -116,6 +139,62 @@ class GroupAnnouncement(Base):
 
     group: Mapped[Group] = relationship('Group', back_populates='announcements')
     author: Mapped[User] = relationship('User', back_populates='announcements')
+
+
+class Friendship(Base):
+    __tablename__ = 'friendships'
+    __table_args__ = (UniqueConstraint('requester_id', 'addressee_id', name='uq_friendship_pair'),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    requester_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    addressee_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    status: Mapped[FriendshipStatus] = mapped_column(Enum(FriendshipStatus), default=FriendshipStatus.pending, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    requester: Mapped[User] = relationship('User', foreign_keys=[requester_id], back_populates='sent_friendships')
+    addressee: Mapped[User] = relationship('User', foreign_keys=[addressee_id], back_populates='received_friendships')
+
+
+class Conversation(Base):
+    __tablename__ = 'conversations'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[ConversationKind] = mapped_column(Enum(ConversationKind), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), default='', nullable=False)
+    group_id: Mapped[int | None] = mapped_column(ForeignKey('groups.id', ondelete='SET NULL'), nullable=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    group: Mapped[Group | None] = relationship('Group', back_populates='conversations')
+    members: Mapped[list['ConversationMember']] = relationship('ConversationMember', back_populates='conversation', cascade='all, delete-orphan')
+    messages: Mapped[list['ConversationMessage']] = relationship('ConversationMessage', back_populates='conversation', cascade='all, delete-orphan')
+
+
+class ConversationMember(Base):
+    __tablename__ = 'conversation_members'
+    __table_args__ = (UniqueConstraint('conversation_id', 'user_id', name='uq_conversation_member'),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey('conversations.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    conversation: Mapped['Conversation'] = relationship('Conversation', back_populates='members')
+    user: Mapped[User] = relationship('User', back_populates='conversation_memberships')
+
+
+class ConversationMessage(Base):
+    __tablename__ = 'conversation_messages'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey('conversations.id', ondelete='CASCADE'), nullable=False, index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    conversation: Mapped['Conversation'] = relationship('Conversation', back_populates='messages')
+    sender: Mapped[User] = relationship('User', back_populates='conversation_messages')
 
 
 class GroupMember(Base):

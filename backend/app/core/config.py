@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     algorithm: str = 'HS256'
 
     database_url: str = 'postgresql+psycopg2://postgres:postgres@postgres:5432/study_platform'
-    uploads_dir: str = '/app/data/uploads'
+    uploads_dir: str = './data/uploads'
 
     livekit_url: str = 'ws://livekit:7880'
     livekit_api_key: str = 'devkey'
@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ''
     openai_model: str = 'gpt-5.2'
     openai_base_url: str = 'https://api.openai.com/v1'
+    yandex_gpt_api_key: str = ''
+    yandex_gpt_folder_id: str = ''
+    yandex_gpt_model: str = 'yandexgpt-lite/latest'
 
 
 @lru_cache(maxsize=1)

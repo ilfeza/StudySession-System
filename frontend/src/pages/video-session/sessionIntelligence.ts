@@ -20,18 +20,18 @@ export interface SessionNotification {
 }
 
 export const taskStatusLabels: Record<SessionTaskStatus, string> = {
-  todo: 'Todo',
-  in_progress: 'In Progress',
-  blocked: 'Blocked',
-  needs_reassignment: 'Needs reassignment',
-  done: 'Done',
+  todo: 'К выполнению',
+  in_progress: 'В работе',
+  blocked: 'Заблокировано',
+  needs_reassignment: 'Нужно переназначить',
+  done: 'Готово',
 };
 
 export const priorityLabels: Record<SessionTask['priority'], string> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-  critical: 'Critical',
+  low: 'Низкий',
+  medium: 'Средний',
+  high: 'Высокий',
+  critical: 'Критичный',
 };
 
 export function getPriorityColor(priority: SessionTask['priority']) {
@@ -95,7 +95,7 @@ export function buildChatSuggestion(message: ChatMessage, tasks: SessionTask[]):
       senderId: message.sender_id,
       source: 'chat',
       action: 'mark_done',
-      title: 'Mark task as done?',
+      title: 'Отметить задачу как завершённую?',
       description: `Подтвердить завершение задачи "${senderTask.title}".`,
     };
   }
@@ -108,7 +108,7 @@ export function buildChatSuggestion(message: ChatMessage, tasks: SessionTask[]):
       senderId: message.sender_id,
       source: 'chat',
       action: 'assign_sender',
-      title: 'Assign to me',
+      title: 'Назначить на автора сообщения',
       description: `Назначить "${backlogTask.title}" автору сообщения.`,
     };
   }
@@ -121,8 +121,8 @@ export function buildChatSuggestion(message: ChatMessage, tasks: SessionTask[]):
       senderId: message.sender_id,
       source: 'chat',
       action: 'mark_blocked',
-      title: 'Block task',
-      description: `Пометить "${senderTask.title}" как заблокированную и предложить перераспределение.`,
+      title: 'Пометить как заблокированную',
+      description: `Пометить "${senderTask.title}" как заблокированную и предложить переназначение.`,
     };
   }
 

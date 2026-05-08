@@ -1,0 +1,9 @@
+[run]
+data_file = app/tests/artifacts/.coverage
+branch = True
+
+[html]
+directory = app/tests/artifacts/coverage_html
+
+[xml]
+output = app/tests/artifacts/coverage.xml

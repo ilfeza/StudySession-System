@@ -1,15 +1,13 @@
-import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import VideoCallRoundedIcon from '@mui/icons-material/VideoCallRounded';
 import ViewKanbanRoundedIcon from '@mui/icons-material/ViewKanbanRounded';
 import { Box, Tab, Tabs } from '@mui/material';
 import type { ReactElement } from 'react';
 
-export type SessionView = 'video' | 'board' | 'chat';
+export type SessionView = 'video' | 'board';
 
 const tabs: Array<{ value: SessionView; label: string; icon: ReactElement }> = [
   { value: 'video', label: 'Звонок', icon: <VideoCallRoundedIcon fontSize="small" /> },
   { value: 'board', label: 'Доска', icon: <ViewKanbanRoundedIcon fontSize="small" /> },
-  { value: 'chat', label: 'Чат', icon: <ChatBubbleOutlineRoundedIcon fontSize="small" /> },
 ];
 
 const TAB_HEIGHT = 44;

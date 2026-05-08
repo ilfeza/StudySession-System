@@ -25,6 +25,17 @@ const navigationItems = [
   { to: '/profile', label: 'Профиль' },
 ];
 
+function getShortDisplayName(fullName?: string | null) {
+  if (!fullName) {
+    return '';
+  }
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]} ${parts[1]}`;
+  }
+  return parts[0] ?? '';
+}
+
 export function AppLayout() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
@@ -56,9 +67,16 @@ export function AppLayout() {
           );
         })}
         <Typography variant="body2" color="text.secondary" sx={{ px: isMobile ? 1 : 0, ml: isMobile ? 0 : 1 }}>
-          {user?.full_name}
+          {getShortDisplayName(user?.full_name)}
         </Typography>
-        <Button color="inherit" variant="outlined" onClick={() => { setOpen(false); logout(); }}>
+        <Button
+          color="inherit"
+          variant="outlined"
+          onClick={() => {
+            setOpen(false);
+            logout();
+          }}
+        >
           Выйти
         </Button>
       </Stack>
@@ -68,7 +86,7 @@ export function AppLayout() {
 
   if (isSessionRoute) {
     return (
-      <Box sx={{ height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: '#f3f4f6' }}>
+      <Box sx={{ height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: 'background.default' }}>
         <Outlet />
       </Box>
     );
@@ -76,14 +94,23 @@ export function AppLayout() {
 
   return (
     <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
-      <AppBar position="sticky" color="transparent" sx={{ borderBottom: '1px solid', borderColor: 'divider', backdropFilter: 'blur(14px)', backgroundColor: 'rgba(243, 244, 246, 0.88)' }}>
+      <AppBar
+        position="sticky"
+        color="transparent"
+        sx={{
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          backdropFilter: 'blur(14px)',
+          backgroundColor: 'rgba(243, 244, 246, 0.88)',
+        }}
+      >
         <Toolbar sx={{ minHeight: 72 }}>
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
             <Box
               sx={{
                 width: 40,
                 height: 40,
-                borderRadius: 2,
+                borderRadius: 1.5,
                 display: 'grid',
                 placeItems: 'center',
                 backgroundColor: '#111827',
