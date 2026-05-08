@@ -1,5 +1,6 @@
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import { Alert, Box, Button, Chip, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api/client';
@@ -142,9 +143,11 @@ export function ChatPanel({
           overflowY: 'auto',
           border: '1px solid',
           borderColor: 'divider',
-          borderRadius: 4,
-          p: 1.5,
+          borderRadius: isSessionVariant ? 3 : 4,
+          px: 1.5,
+          py: 1.5,
           backgroundColor: '#f8fafc',
+          boxShadow: 'inset 0 1px 2px rgba(15, 23, 42, 0.04)',
         }}
       >
         <Stack spacing={1}>
@@ -190,7 +193,15 @@ export function ChatPanel({
         </Stack>
       </Box>
 
-      <Stack direction="row" spacing={1} alignItems="flex-end">
+      <Box
+        sx={{
+          flexShrink: 0,
+          pt: 1,
+          borderTop: '1px solid',
+          borderColor: isSessionVariant ? alpha('#cbd5e1', 0.7) : 'transparent',
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="flex-end">
         <TextField
           fullWidth
           label="Сообщение"
@@ -200,16 +211,17 @@ export function ChatPanel({
           maxRows={4}
           placeholder="Напишите короткое сообщение"
         />
-        <IconButton color="primary" onClick={send} sx={{ width: 44, height: 44, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+        <IconButton color="primary" onClick={send} sx={{ width: 44, height: 44, border: '1px solid', borderColor: 'divider', borderRadius: 2, backgroundColor: '#ffffff', boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)', '&:hover': { backgroundColor: '#f8fafc' } }}>
           <SendRoundedIcon />
         </IconButton>
-      </Stack>
+        </Stack>
 
       {isModerator ? (
-        <Button variant="outlined" onClick={() => Object.values(suggestionsByMessage).forEach((item) => onSuggestionApply?.(item))} disabled={!Object.keys(suggestionsByMessage).length}>
-          Confirm AI changes
+        <Button variant="outlined" onClick={() => Object.values(suggestionsByMessage).forEach((item) => onSuggestionApply?.(item))} disabled={!Object.keys(suggestionsByMessage).length} sx={{ mt: 1 }}>
+          Подтвердить AI-изменения
         </Button>
       ) : null}
+      </Box>
     </Paper>
   );
 }

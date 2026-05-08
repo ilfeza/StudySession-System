@@ -48,12 +48,23 @@ export const appTheme = createTheme({
   components: {
     MuiCssBaseline: {
       styleOverrides: {
+        '*, *::before, *::after': {
+          boxSizing: 'border-box',
+        },
+        html: {
+          width: '100%',
+          height: '100%',
+        },
         body: {
+          width: '100%',
+          height: '100%',
           backgroundColor: '#f3f4f6',
           color: '#111827',
+          margin: 0,
         },
         '#root': {
           minHeight: '100vh',
+          width: '100%',
         },
       },
     },
@@ -80,9 +91,11 @@ export const appTheme = createTheme({
       },
       styleOverrides: {
         root: {
-          minHeight: 40,
-          borderRadius: 10,
+          minHeight: 44,
+          borderRadius: 12,
           paddingInline: 16,
+          paddingBlock: 0,
+          boxSizing: 'border-box',
         },
         contained: {
           backgroundColor: '#111827',
@@ -160,8 +173,10 @@ export const appTheme = createTheme({
       styleOverrides: {
         root: {
           textTransform: 'none',
-          minHeight: 40,
-          paddingInline: 12,
+          minHeight: 44,
+          paddingInline: 16,
+          paddingBlock: 0,
+          boxSizing: 'border-box',
         },
       },
     },

@@ -68,7 +68,7 @@ export function AppLayout() {
 
   if (isSessionRoute) {
     return (
-      <Box sx={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
+      <Box sx={{ height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: '#f3f4f6' }}>
         <Outlet />
       </Box>
     );

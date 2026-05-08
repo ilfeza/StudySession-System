@@ -263,6 +263,13 @@ export function DeviceSetupScreen({
                 backgroundColor: '#ffffff',
                 border: '1px solid #e5e7eb',
                 boxShadow: '0 24px 60px rgba(15, 23, 42, 0.08)',
+                '& .device-setup-preview-video': {
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transform: 'scaleX(-1)',
+                  display: 'block',
+                },
               }}
             >
               {canShowVideo ? (
@@ -271,12 +278,7 @@ export function DeviceSetupScreen({
                   autoPlay
                   playsInline
                   muted
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    transform: 'scaleX(-1)',
-                  }}
+                  className="device-setup-preview-video"
                 />
               ) : (
                 <Stack
