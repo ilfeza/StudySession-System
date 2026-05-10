@@ -363,3 +363,7 @@ data/uploads/*
 # wireframes/temp/*
 /wireframes
 /backend/app/tests/artifacts/allure-results
+/backend/allure-report/data/test-cases
+/backend/allure-results
+/backend/allure-report/data
+/backend/allure-report/history

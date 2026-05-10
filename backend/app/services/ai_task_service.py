@@ -50,12 +50,39 @@ class AiTaskService:
         )
 
     async def generate_tasks(self, room_title: str, description: str, messages: list[dict[str, str]]) -> list[dict[str, str | None]]:
-        if not self.settings.openai_api_key:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail='AI-генерация недоступна: не настроен OPENAI_API_KEY.',
+        parsed = await self._request_tasks_payload(room_title, description, messages)
+        tasks = parsed.get('tasks', [])
+
+        normalized_tasks: list[dict[str, str | None]] = []
+        for item in tasks[:8]:
+            title = str(item.get('title', '')).strip()
+            description_value = str(item.get('description', '')).strip()
+            assignee_raw = item.get('assignee')
+            assignee = str(assignee_raw).strip() if assignee_raw else None
+            if not title:
+                continue
+            normalized_tasks.append(
+                {
+                    'title': title[:200],
+                    'description': description_value[:1000],
+                    'assignee': assignee[:255] if assignee else None,
+                    'suggested_stage': 'backlog',
+                },
             )
 
+        return normalized_tasks
+
+    async def _request_tasks_payload(self, room_title: str, description: str, messages: list[dict[str, str]]) -> dict[str, Any]:
+        if self.settings.openai_api_key:
+            return await self._request_openai_payload(room_title, description, messages)
+        if self.settings.yandex_gpt_api_key and self.settings.yandex_gpt_folder_id:
+            return await self._request_yandex_payload(room_title, description, messages)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail='AI-генерация недоступна: настройте OPENAI_API_KEY или пару YANDEX_GPT_API_KEY / YANDEX_GPT_FOLDER_ID.',
+        )
+
+    async def _request_openai_payload(self, room_title: str, description: str, messages: list[dict[str, str]]) -> dict[str, Any]:
         url = f"{self.settings.openai_base_url.rstrip('/')}/responses"
         payload = {
             'model': self.settings.openai_model,
@@ -85,52 +112,63 @@ class AiTaskService:
             'Authorization': f'Bearer {self.settings.openai_api_key}',
             'Content-Type': 'application/json',
         }
+        data = await self._post_json(url, payload, headers)
+        try:
+            return json.loads(self._extract_openai_text_output(data))
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='OpenAI вернул ответ в неожиданном формате.') from exc
 
+    async def _request_yandex_payload(self, room_title: str, description: str, messages: list[dict[str, str]]) -> dict[str, Any]:
+        url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
+        payload = {
+            'modelUri': f"gpt://{self.settings.yandex_gpt_folder_id}/{self.settings.yandex_gpt_model}",
+            'completionOptions': {
+                'stream': False,
+                'temperature': 0.2,
+                'maxTokens': '2000',
+            },
+            'messages': [
+                {
+                    'role': 'system',
+                    'text': 'Ты генерируешь список задач по итогам учебного обсуждения и возвращаешь только JSON по заданной схеме.',
+                },
+                {
+                    'role': 'user',
+                    'text': self.build_prompt(room_title, description, messages) + '\nВерни только JSON-объект с ключом tasks.',
+                },
+            ],
+            'jsonSchema': {
+                'schema': TASKS_JSON_SCHEMA,
+            },
+        }
+        headers = {
+            'Authorization': f'Api-Key {self.settings.yandex_gpt_api_key}',
+            'Content-Type': 'application/json',
+        }
+        data = await self._post_json(url, payload, headers)
+        try:
+            message = data['result']['alternatives'][0]['message']['text']
+            return json.loads(message)
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='YandexGPT вернул ответ в неожиданном формате.') from exc
+
+    async def _post_json(self, url: str, payload: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
         try:
             async with httpx.AsyncClient(timeout=35.0) as client:
                 response = await client.post(url, json=payload, headers=headers)
         except httpx.HTTPError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail='Не удалось связаться с AI API.',
-            ) from exc
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail='Не удалось связаться с AI API.') from exc
 
         if response.status_code >= 400:
             detail = 'AI API вернул ошибку.'
             try:
                 error_payload = response.json()
-                detail = error_payload.get('error', {}).get('message') or detail
+                detail = error_payload.get('error', {}).get('message') or error_payload.get('message') or detail
             except Exception:
                 pass
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
 
-        try:
-            data = response.json()
-            parsed = json.loads(self._extract_text_output(data))
-            tasks = parsed.get('tasks', [])
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail='AI вернул ответ в неожиданном формате.',
-            ) from exc
-
-        normalized_tasks: list[dict[str, str | None]] = []
-        for item in tasks[:8]:
-            title = str(item.get('title', '')).strip()
-            description_value = str(item.get('description', '')).strip()
-            assignee_raw = item.get('assignee')
-            assignee = str(assignee_raw).strip() if assignee_raw else None
-            if not title:
-                continue
-            normalized_tasks.append(
-                {
-                    'title': title[:200],
-                    'description': description_value[:1000],
-                    'assignee': assignee[:255] if assignee else None,
-                },
-            )
-
-        return normalized_tasks
+        return response.json()
 
     def _normalize_messages(self, messages: list[dict[str, str]]) -> list[str]:
         lines: list[str] = []
@@ -149,7 +187,7 @@ class AiTaskService:
 
         return lines
 
-    def _extract_text_output(self, data: dict[str, Any]) -> str:
+    def _extract_openai_text_output(self, data: dict[str, Any]) -> str:
         output_text = data.get('output_text')
         if isinstance(output_text, str) and output_text.strip():
             return output_text

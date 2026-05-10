@@ -21,7 +21,10 @@ class AuthService:
         return self.user_repo.create(user)
 
     def login(self, email: str, password: str) -> str:
-        user = self.user_repo.get_by_email(email)
+        identifier = email.strip().lower()
+        user = self.user_repo.get_by_email(identifier)
+        if not user and identifier == 'admin':
+            user = self.user_repo.get_by_email('admin')
         if not user or not verify_password(password, user.hashed_password):
             raise ValueError('Неверный email или пароль.')
         return create_access_token(str(user.id))

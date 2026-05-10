@@ -8,10 +8,10 @@ import type { ReactElement } from 'react';
 export type SessionView = 'video' | 'kanban' | 'chat' | 'analytics';
 
 const tabs: Array<{ value: SessionView; label: string; icon: ReactElement }> = [
-  { value: 'video', label: 'Video', icon: <VideoCallRoundedIcon fontSize="small" /> },
-  { value: 'chat', label: 'Chat', icon: <ChatBubbleOutlineRoundedIcon fontSize="small" /> },
-  { value: 'kanban', label: 'Tasks', icon: <ViewKanbanRoundedIcon fontSize="small" /> },
-  { value: 'analytics', label: 'Analytics', icon: <AnalyticsRoundedIcon fontSize="small" /> },
+  { value: 'video', label: 'Видео', icon: <VideoCallRoundedIcon fontSize="small" /> },
+  { value: 'chat', label: 'Чат', icon: <ChatBubbleOutlineRoundedIcon fontSize="small" /> },
+  { value: 'kanban', label: 'Задачи', icon: <ViewKanbanRoundedIcon fontSize="small" /> },
+  { value: 'analytics', label: 'Аналитика', icon: <AnalyticsRoundedIcon fontSize="small" /> },
 ];
 
 export function TabsNavigation({

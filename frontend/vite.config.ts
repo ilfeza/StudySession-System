@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 
 /** Прокси как в nginx: клиент ходит на ws://localhost:5173/livekit/... → LiveKit на 7880 */
 const livekitTarget = process.env.VITE_LIVEKIT_DEV_PROXY ?? 'http://127.0.0.1:7880';
+const backendTarget = process.env.VITE_BACKEND_DEV_PROXY ?? 'http://127.0.0.1:8000';
 
 export default defineConfig({
   plugins: [react()],
@@ -10,6 +11,19 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     proxy: {
+      '/api': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/files': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: backendTarget,
+        changeOrigin: true,
+        ws: true,
+      },
       '/livekit': {
         target: livekitTarget,
         changeOrigin: true,

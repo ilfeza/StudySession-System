@@ -20,10 +20,10 @@ export interface SessionNotification {
 }
 
 export const taskStatusLabels: Record<SessionTaskStatus, string> = {
-  todo: 'К выполнению',
+  backlog: 'Бэклог',
+  assigned: 'Назначено',
   in_progress: 'В работе',
   blocked: 'Заблокировано',
-  needs_reassignment: 'Нужно переназначить',
   done: 'Готово',
 };
 
@@ -85,7 +85,7 @@ export function buildChatSuggestion(message: ChatMessage, tasks: SessionTask[]):
   }
 
   const senderTask = [...tasks].find((task) => task.assignee_id === message.sender_id && task.status !== 'done');
-  const backlogTask = [...tasks].find((task) => (task.status === 'todo' || task.status === 'needs_reassignment') && task.assignee_id == null);
+  const backlogTask = [...tasks].find((task) => task.status === 'backlog' && task.assignee_id == null);
 
   if (/(i finished this|я закончил|я закончила|done|готово|завершил|завершила)/i.test(text) && senderTask) {
     return {
@@ -95,7 +95,7 @@ export function buildChatSuggestion(message: ChatMessage, tasks: SessionTask[]):
       senderId: message.sender_id,
       source: 'chat',
       action: 'mark_done',
-      title: 'Отметить задачу как завершённую?',
+      title: 'Отметить задачу как завершенную?',
       description: `Подтвердить завершение задачи "${senderTask.title}".`,
     };
   }
@@ -108,7 +108,7 @@ export function buildChatSuggestion(message: ChatMessage, tasks: SessionTask[]):
       senderId: message.sender_id,
       source: 'chat',
       action: 'assign_sender',
-      title: 'Назначить на автора сообщения',
+      title: 'Назначить автора сообщения?',
       description: `Назначить "${backlogTask.title}" автору сообщения.`,
     };
   }
@@ -122,7 +122,7 @@ export function buildChatSuggestion(message: ChatMessage, tasks: SessionTask[]):
       source: 'chat',
       action: 'mark_blocked',
       title: 'Пометить как заблокированную',
-      description: `Пометить "${senderTask.title}" как заблокированную и предложить переназначение.`,
+      description: `Пометить "${senderTask.title}" как заблокированную и предложить помощь.`,
     };
   }
 

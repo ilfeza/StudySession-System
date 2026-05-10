@@ -1,4 +1,10 @@
 from app.schemas.common import (
+    AdminAnalyticsOverview,
+    AdminGroupMemberUpdate,
+    AdminGroupRead,
+    AdminGroupUpdate,
+    AdminUserCreate,
+    AdminUserUpdate,
     AiGenerateTasksRequest,
     AiGeneratedTaskRead,
     AnnouncementCreate,
@@ -45,6 +51,12 @@ from app.schemas.common import (
 )
 
 __all__ = [
+    'AdminAnalyticsOverview',
+    'AdminGroupMemberUpdate',
+    'AdminGroupRead',
+    'AdminGroupUpdate',
+    'AdminUserCreate',
+    'AdminUserUpdate',
     'AiGenerateTasksRequest',
     'AiGeneratedTaskRead',
     'AnnouncementCreate',

@@ -109,9 +109,11 @@ export function createAppTheme(mode: PaletteMode) {
             },
           },
           outlined: {
+            borderWidth: 1,
             borderColor: isDark ? '#334155' : '#d1d5db',
             color: isDark ? '#f8fafc' : '#111827',
             '&:hover': {
+              borderWidth: 1,
               borderColor: isDark ? '#475569' : '#9ca3af',
               backgroundColor: alpha(isDark ? '#f8fafc' : '#111827', 0.03),
             },

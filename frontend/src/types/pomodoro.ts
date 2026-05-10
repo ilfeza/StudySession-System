@@ -39,7 +39,7 @@ export interface PomodoroStateSnapshot {
   updated_at: string;
 }
 
-export type SessionStage = 'discussion' | 'work' | 'summary';
+export type SessionStage = 'task_creation' | 'task_distribution' | 'execution' | 'review';
 
 export interface StageTiming {
   server_time: string;

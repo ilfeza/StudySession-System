@@ -31,7 +31,7 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 
@@ -45,14 +45,82 @@ class UserRead(BaseModel):
     skills: list[str] = []
     reliability_score: float
     workload_limit: int
+    is_active: bool = True
 
 
 class UserDirectoryRead(BaseModel):
     id: int
+    email: str = ''
     full_name: str
     role: UserRole
     is_online: bool = False
     current_status: str = ''
+    is_active: bool = True
+
+
+class GroupMemberAdminRead(BaseModel):
+    user_id: int
+    full_name: str
+    email: str
+    role: UserRole
+    can_moderate: bool
+    joined_at: datetime
+
+
+class AdminGroupRead(BaseModel):
+    id: int
+    name: str
+    description: str
+    visibility: GroupVisibility
+    invite_key: str
+    owner_id: int
+    owner_name: str
+    member_count: int
+    active_sessions: int
+    created_at: datetime
+    members: list[GroupMemberAdminRead]
+
+
+class AdminGroupUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=255)
+    description: str | None = None
+    visibility: GroupVisibility | None = None
+
+
+class AdminGroupMemberUpdate(BaseModel):
+    can_moderate: bool
+
+
+class AdminUserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=4, max_length=100)
+    role: UserRole = UserRole.analyst
+    skills: list[str] = []
+    is_active: bool = True
+
+
+class AdminUserUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=3, max_length=255)
+    role: UserRole | None = None
+    is_active: bool | None = None
+    workload_limit: int | None = Field(default=None, ge=1, le=20)
+    reliability_score: float | None = Field(default=None, ge=0, le=1)
+    skills: list[str] | None = None
+
+
+class AdminAnalyticsOverview(BaseModel):
+    total_users: int
+    active_users: int
+    total_groups: int
+    private_groups: int
+    total_friendships: int
+    active_sessions: int
+    completed_tasks: int
+    pending_tasks: int
+    role_distribution: dict[str, int]
+    top_groups: list[dict[str, int | str]]
+    recent_users: list[UserDirectoryRead]
 
 
 class GroupCreate(BaseModel):
@@ -182,7 +250,7 @@ class TaskCreate(BaseModel):
     title: str
     description: str = ''
     assignee_id: Optional[int] = None
-    status: SessionTaskStatus = SessionTaskStatus.todo
+    status: SessionTaskStatus = SessionTaskStatus.backlog
     required_skills: list[str] = []
     priority: TaskPriority = TaskPriority.medium
     deadline: Optional[datetime] = None
@@ -222,6 +290,8 @@ class TaskRead(BaseModel):
     created_at: datetime
     created_by: Optional[TaskUserRead] = None
     assignee: Optional[TaskUserRead] = None
+    workflow_stage: str = ''
+    assignment_status: str = ''
 
 
 class AssignmentRead(BaseModel):
@@ -236,6 +306,7 @@ class AssignmentRead(BaseModel):
 
 class ChatMessageCreate(BaseModel):
     session_id: int
+    task_id: Optional[int] = None
     message: str = Field(min_length=1, max_length=3000)
 
 
@@ -244,9 +315,11 @@ class ChatMessageRead(BaseModel):
 
     id: int
     session_id: int
+    task_id: Optional[int] = None
     sender_id: int
     sender_name: str
     message: str
+    stage: str = ''
     created_at: datetime
 
 
@@ -270,6 +343,7 @@ class AiGeneratedTaskRead(BaseModel):
     title: str
     description: str = ''
     assignee: Optional[str] = None
+    suggested_stage: str = SessionTaskStatus.backlog.value
 
 
 class FileRead(BaseModel):
@@ -315,7 +389,7 @@ class AnnouncementFeedItem(BaseModel):
 
 class SessionSummaryTaskPayload(BaseModel):
     task_id: Optional[int] = None
-    status_at_summary: SessionTaskStatus = SessionTaskStatus.todo
+    status_at_summary: SessionTaskStatus = SessionTaskStatus.backlog
     sort_order: int = 0
 
 
@@ -356,6 +430,10 @@ class SessionSummaryRead(BaseModel):
     completed_work: str
     next_steps: str
     short_description: str
+    completion_summary: str = ''
+    contribution_summary: str = ''
+    bottleneck_summary: str = ''
+    collaboration_summary: str = ''
     status: SessionSummaryStatus
     remind_at: Optional[datetime] = None
     participants: list[SessionSummaryParticipantRead]

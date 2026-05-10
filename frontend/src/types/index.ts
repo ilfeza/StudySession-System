@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'instructor' | 'admin';
+export type UserRole = 'student' | 'instructor' | 'admin' | 'analyst';
 export type GroupVisibility = 'public' | 'private';
 export type FriendshipStatus = 'pending' | 'accepted' | 'blocked';
 export type ConversationKind = 'direct' | 'group';
@@ -11,6 +11,7 @@ export interface User {
   skills: string[];
   reliability_score: number;
   workload_limit: number;
+  is_active?: boolean;
 }
 
 export interface Group {
@@ -48,7 +49,7 @@ export interface VideoSessionRoom {
   livekit_room: string;
 }
 
-export type SessionTaskStatus = 'todo' | 'in_progress' | 'blocked' | 'needs_reassignment' | 'done';
+export type SessionTaskStatus = 'backlog' | 'assigned' | 'in_progress' | 'blocked' | 'done';
 
 export interface Task {
   id: number;
@@ -94,23 +95,29 @@ export interface SessionTask {
   created_at: string;
   created_by?: TaskPerson | null;
   assignee?: TaskPerson | null;
+  workflow_stage?: string;
+  assignment_status?: string;
 }
 
 export interface ChatMessage {
   id: number;
   session_id: number;
+  task_id?: number | null;
   sender_id?: number;
   sender_name: string;
   message: string;
+  stage?: string;
   created_at: string;
 }
 
 export interface UserDirectory {
   id: number;
+  email?: string;
   full_name: string;
   role: UserRole;
   is_online: boolean;
   current_status: string;
+  is_active?: boolean;
 }
 
 export interface Friendship {
@@ -144,6 +151,7 @@ export interface AiTaskSuggestion {
   title: string;
   description: string;
   assignee?: string | null;
+  suggested_stage?: string;
 }
 
 export interface AnnouncementFeedItem {
@@ -182,6 +190,10 @@ export interface SessionSummary {
   completed_work: string;
   next_steps: string;
   short_description: string;
+  completion_summary?: string;
+  contribution_summary?: string;
+  bottleneck_summary?: string;
+  collaboration_summary?: string;
   status: SessionSummaryStatus;
   remind_at?: string | null;
   participants: SessionSummaryParticipant[];
@@ -238,4 +250,41 @@ export interface UserSessionHistoryItem {
   tasks_total: number;
   tasks_completed: number;
   short_description: string;
+}
+
+export interface AdminAnalyticsOverview {
+  total_users: number;
+  active_users: number;
+  total_groups: number;
+  private_groups: number;
+  total_friendships: number;
+  active_sessions: number;
+  completed_tasks: number;
+  pending_tasks: number;
+  role_distribution: Record<string, number>;
+  top_groups: Array<{ id: number; name: string; member_count: number }>;
+  recent_users: UserDirectory[];
+}
+
+export interface AdminGroupMember {
+  user_id: number;
+  full_name: string;
+  email: string;
+  role: UserRole;
+  can_moderate: boolean;
+  joined_at: string;
+}
+
+export interface AdminGroup {
+  id: number;
+  name: string;
+  description: string;
+  visibility: GroupVisibility;
+  invite_key: string;
+  owner_id: number;
+  owner_name: string;
+  member_count: number;
+  active_sessions: number;
+  created_at: string;
+  members: AdminGroupMember[];
 }

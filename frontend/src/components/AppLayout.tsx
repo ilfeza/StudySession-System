@@ -1,4 +1,5 @@
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
 import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import {
   AppBar,
@@ -18,22 +19,31 @@ import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 
-const navigationItems = [
-  { to: '/dashboard', label: 'Дашборд' },
-  { to: '/groups', label: 'Группы' },
-  { to: '/history', label: 'История' },
-  { to: '/profile', label: 'Профиль' },
-];
+function getNavigationItems(role?: string) {
+  if (role === 'analyst') {
+    return [{ to: '/admin', label: 'Аналитика' }];
+  }
+
+  const items = [
+    { to: '/dashboard', label: 'Обзор' },
+    { to: '/groups', label: 'Группы' },
+    { to: '/history', label: 'История' },
+    { to: '/profile', label: 'Профиль' },
+  ];
+
+  if (role === 'admin') {
+    items.push({ to: '/admin', label: 'Админ-панель' });
+  }
+
+  return items;
+}
 
 function getShortDisplayName(fullName?: string | null) {
   if (!fullName) {
     return '';
   }
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]} ${parts[1]}`;
-  }
-  return parts[0] ?? '';
+  return parts.slice(0, 2).join(' ');
 }
 
 export function AppLayout() {
@@ -43,6 +53,7 @@ export function AppLayout() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const isSessionRoute = location.pathname.startsWith('/sessions/');
+  const navigationItems = useMemo(() => getNavigationItems(user?.role), [user?.role]);
 
   const nav = useMemo(
     () => (
@@ -55,12 +66,8 @@ export function AppLayout() {
               component={RouterLink}
               to={item.to}
               onClick={() => setOpen(false)}
-              variant={active ? 'contained' : 'text'}
-              color="primary"
-              sx={{
-                justifyContent: isMobile ? 'flex-start' : 'center',
-                px: 1.5,
-              }}
+              variant={active ? 'contained' : 'outlined'}
+              sx={{ justifyContent: isMobile ? 'flex-start' : 'center' }}
             >
               {item.label}
             </Button>
@@ -70,7 +77,6 @@ export function AppLayout() {
           {getShortDisplayName(user?.full_name)}
         </Typography>
         <Button
-          color="inherit"
           variant="outlined"
           onClick={() => {
             setOpen(false);
@@ -81,7 +87,7 @@ export function AppLayout() {
         </Button>
       </Stack>
     ),
-    [isMobile, location.pathname, logout, user?.full_name],
+    [isMobile, location.pathname, logout, navigationItems, user?.full_name],
   );
 
   if (isSessionRoute) {
@@ -93,7 +99,7 @@ export function AppLayout() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: 'background.default' }}>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, rgba(249,250,251,0.98) 0%, rgba(243,244,246,1) 100%)' }}>
       <AppBar
         position="sticky"
         color="transparent"
@@ -108,8 +114,8 @@ export function AppLayout() {
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
             <Box
               sx={{
-                width: 40,
-                height: 40,
+                width: 42,
+                height: 42,
                 borderRadius: 1.5,
                 display: 'grid',
                 placeItems: 'center',
@@ -117,12 +123,12 @@ export function AppLayout() {
                 color: '#ffffff',
               }}
             >
-              <VideocamRoundedIcon fontSize="small" />
+              {user?.role === 'admin' || user?.role === 'analyst' ? <ShieldRoundedIcon fontSize="small" /> : <VideocamRoundedIcon fontSize="small" />}
             </Box>
             <Box>
               <Typography variant="subtitle1">StudySession</Typography>
               <Typography variant="caption" color="text.secondary">
-                Совместная работа и видеосессии
+                {user?.role === 'analyst' ? 'Режим просмотра аналитики' : 'Учебные встречи, группы и совместная работа'}
               </Typography>
             </Box>
           </Stack>

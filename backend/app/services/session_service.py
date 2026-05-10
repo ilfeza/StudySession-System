@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models import ChatMessage, SessionParticipant, VideoSession
 from app.repositories.session_repository import SessionRepository
+from app.services.session_stage_service import SessionStageService
 
 
 class SessionService:
@@ -60,12 +61,15 @@ class SessionService:
 
         return self.repo.upsert_participant(SessionParticipant(session_id=session_id, user_id=user_id))
 
-    def save_message(self, session_id: int, sender_id: int, sender_name: str, message: str) -> ChatMessage:
+    def save_message(self, session_id: int, sender_id: int, sender_name: str, message: str, task_id: int | None = None) -> ChatMessage:
+        stage_state = SessionStageService(self.db).sync_stage_for_session(session_id)
         model = ChatMessage(
             session_id=session_id,
+            task_id=task_id,
             sender_id=sender_id,
             sender_name=sender_name,
             message=message,
+            stage=stage_state.current_stage.value,
         )
         return self.repo.create_message(model)
 

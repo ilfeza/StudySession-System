@@ -1,8 +1,9 @@
-﻿import { ReactElement } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { ReactElement } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { AppLayout } from './components/AppLayout';
 import { useAuth } from './context/AuthContext';
+import { AdminPage } from './pages/AdminPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GroupsPage } from './pages/GroupsPage';
@@ -24,6 +25,22 @@ function ProtectedRoute({ children }: { children: ReactElement }) {
   return children;
 }
 
+function RestrictedForAnalyst({ children }: { children: ReactElement }) {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  if (user?.role === 'analyst' && location.pathname !== '/admin') {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
+}
+
+function HomeRedirect() {
+  const { user } = useAuth();
+  return <Navigate to={user?.role === 'analyst' ? '/admin' : '/dashboard'} replace />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -35,13 +52,49 @@ export default function App() {
           </ProtectedRoute>
         )}
       >
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/groups" element={<GroupsPage />} />
-        <Route path="/history" element={<SessionHistoryPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/sessions/:sessionId" element={<VideoSessionPage />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<HomeRedirect />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route
+          path="/dashboard"
+          element={(
+            <RestrictedForAnalyst>
+              <DashboardPage />
+            </RestrictedForAnalyst>
+          )}
+        />
+        <Route
+          path="/groups"
+          element={(
+            <RestrictedForAnalyst>
+              <GroupsPage />
+            </RestrictedForAnalyst>
+          )}
+        />
+        <Route
+          path="/history"
+          element={(
+            <RestrictedForAnalyst>
+              <SessionHistoryPage />
+            </RestrictedForAnalyst>
+          )}
+        />
+        <Route
+          path="/profile"
+          element={(
+            <RestrictedForAnalyst>
+              <ProfilePage />
+            </RestrictedForAnalyst>
+          )}
+        />
+        <Route
+          path="/sessions/:sessionId"
+          element={(
+            <RestrictedForAnalyst>
+              <VideoSessionPage />
+            </RestrictedForAnalyst>
+          )}
+        />
+        <Route path="*" element={<HomeRedirect />} />
       </Route>
     </Routes>
   );

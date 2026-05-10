@@ -27,7 +27,7 @@ export function AuthPage() {
   const [skills, setSkills] = useState('');
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={user.role === 'analyst' ? '/admin' : '/dashboard'} replace />;
   }
 
   async function onSubmit(event: FormEvent) {
@@ -64,26 +64,26 @@ export function AuthPage() {
       >
         <Paper sx={{ p: { xs: 3, md: 5 }, borderRadius: 3, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <Stack spacing={3}>
-            <Chip label="StudySession Platform" sx={{ alignSelf: 'flex-start' }} />
+            <Chip label="Платформа StudySession" sx={{ alignSelf: 'flex-start' }} />
             <Box>
-              <Typography variant="h2" sx={{ maxWidth: 540 }}>
-                Спокойный рабочий контур для учебных встреч, задач и материалов.
+              <Typography variant="h2" sx={{ maxWidth: 560 }}>
+                Единое пространство для учебных встреч, групп, задач и материалов.
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mt: 2, maxWidth: 560 }}>
-                Платформа объединяет видеосессии, командные задачи, историю встреч и материалы в одном аккуратном интерфейсе без лишнего шума.
+                Здесь можно вести групповые встречи, искать друзей, работать с материалами, модерировать сообщества и следить за аналитикой сайта.
               </Typography>
             </Box>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <Paper sx={{ p: 2.5, flex: 1, borderRadius: 3, bgcolor: '#f9fafb' }}>
-                <Typography variant="subtitle2">Видеосессии</Typography>
+                <Typography variant="subtitle2">Группы и видеосессии</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Чистая комната для работы команды с фокусом на контенте.
+                  Создавайте учебные комнаты, открывайте общие чаты и храните историю встреч в одном месте.
                 </Typography>
               </Paper>
               <Paper sx={{ p: 2.5, flex: 1, borderRadius: 3, bgcolor: '#f9fafb' }}>
-                <Typography variant="subtitle2">Kanban и материалы</Typography>
+                <Typography variant="subtitle2">Админка и аналитика</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Задачи, история и файлы собраны в одном предсказуемом потоке.
+                  Вход `admin / admin` открывает панель управления пользователями, группами и общей статистикой платформы.
                 </Typography>
               </Paper>
             </Stack>
@@ -93,7 +93,7 @@ export function AuthPage() {
         <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 3 }}>
           <Typography variant="h4">Вход в рабочее пространство</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Используйте существующий аккаунт или создайте новый профиль.
+            Войдите в существующий аккаунт или создайте новый профиль.
           </Typography>
           <Tabs value={tab} onChange={(_, value) => setTab(value)} sx={{ mt: 3, mb: 3 }}>
             <Tab label="Вход" />
@@ -102,7 +102,13 @@ export function AuthPage() {
           {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
           <Stack component="form" spacing={2} onSubmit={onSubmit}>
             {tab === 1 ? <TextField label="ФИО" value={fullName} onChange={(e) => setFullName(e.target.value)} required /> : null}
-            <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <TextField
+              label={tab === 0 ? 'Логин или email' : 'Email'}
+              type="text"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
             <TextField label="Пароль" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             {tab === 1 ? (
               <>

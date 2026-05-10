@@ -34,7 +34,7 @@ export function SessionAnalyticsPanel({
     <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 4, backgroundColor: '#ffffff' }}>
       <Stack spacing={2}>
         <Stack spacing={0.5}>
-          <Typography variant="h5">Analytics</Typography>
+          <Typography variant="h5">Аналитика</Typography>
           <Typography variant="body2" color="text.secondary">
             Компактная сводка по прогрессу сессии и текущей командной нагрузке.
           </Typography>
@@ -42,15 +42,15 @@ export function SessionAnalyticsPanel({
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <Paper sx={{ p: 2, borderRadius: 3, flex: 1, bgcolor: '#f9fafb' }}>
-            <Typography variant="caption" color="text.secondary">Total tasks</Typography>
+            <Typography variant="caption" color="text.secondary">Всего задач</Typography>
             <Typography variant="h4" sx={{ mt: 0.5 }}>{metrics.totalTasks}</Typography>
           </Paper>
           <Paper sx={{ p: 2, borderRadius: 3, flex: 1, bgcolor: '#f9fafb' }}>
-            <Typography variant="caption" color="text.secondary">Completed tasks</Typography>
+            <Typography variant="caption" color="text.secondary">Выполнено задач</Typography>
             <Typography variant="h4" sx={{ mt: 0.5 }}>{metrics.completedTasks}</Typography>
           </Paper>
           <Paper sx={{ p: 2, borderRadius: 3, flex: 1, bgcolor: '#f9fafb' }}>
-            <Typography variant="caption" color="text.secondary">Active participants</Typography>
+            <Typography variant="caption" color="text.secondary">Активных участников</Typography>
             <Typography variant="h4" sx={{ mt: 0.5 }}>{metrics.activeParticipants}</Typography>
           </Paper>
         </Stack>
@@ -58,7 +58,7 @@ export function SessionAnalyticsPanel({
         <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
           <Stack spacing={1}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="subtitle2">Completion percentage</Typography>
+              <Typography variant="subtitle2">Процент выполнения</Typography>
               <Typography variant="subtitle2">{metrics.completion}%</Typography>
             </Stack>
             <LinearProgress variant="determinate" value={metrics.completion} sx={{ height: 8, borderRadius: 999 }} />
@@ -66,7 +66,7 @@ export function SessionAnalyticsPanel({
         </Paper>
 
         <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
-          <Typography variant="caption" color="text.secondary">Average completion time</Typography>
+          <Typography variant="caption" color="text.secondary">Среднее время выполнения</Typography>
           <Typography variant="h4" sx={{ mt: 0.5 }}>
             {metrics.averageHours.toFixed(1)}h
           </Typography>

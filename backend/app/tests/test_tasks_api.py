@@ -36,15 +36,45 @@ def test_create_update_and_delete_session_task(client, auth_headers):
     assert create_task.status_code == 200
     task = create_task.json()
     assert task['title'] == 'Проверить уведомления'
+    assert task['status'] == 'backlog'
+    assert task['workflow_stage'] == 'task_creation'
 
-    update = client.patch(
+    assign_from_backlog = client.patch(
+        f"/api/tasks/{task['id']}",
+        headers=auth_headers,
+        json={'assignee_id': 1},
+    )
+    assert assign_from_backlog.status_code == 200
+    assert assign_from_backlog.json()['assignee_id'] == 1
+    assert assign_from_backlog.json()['status'] == 'assigned'
+    assert assign_from_backlog.json()['workflow_stage'] == 'task_distribution'
+
+    assign = client.patch(
+        f"/api/tasks/{task['id']}",
+        headers=auth_headers,
+        json={'assignee_id': 1, 'status': 'assigned'},
+    )
+    assert assign.status_code == 200
+    assert assign.json()['status'] == 'assigned'
+    assert assign.json()['workflow_stage'] == 'task_distribution'
+
+    start = client.patch(
+        f"/api/tasks/{task['id']}",
+        headers=auth_headers,
+        json={'status': 'in_progress'},
+    )
+    assert start.status_code == 200
+    assert start.json()['status'] == 'in_progress'
+    assert start.json()['workflow_stage'] == 'execution'
+
+    finish = client.patch(
         f"/api/tasks/{task['id']}",
         headers=auth_headers,
         json={'status': 'done'},
     )
-    assert update.status_code == 200
-    assert update.json()['status'] == 'done'
-    assert update.json()['is_completed'] is True
+    assert finish.status_code == 200
+    assert finish.json()['status'] == 'done'
+    assert finish.json()['is_completed'] is True
 
     delete = client.delete(f"/api/tasks/{task['id']}", headers=auth_headers)
     assert delete.status_code == 200

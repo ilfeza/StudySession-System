@@ -30,6 +30,10 @@ def _summary_read(summary: SessionSummary) -> SessionSummaryRead:
         completed_work=summary.completed_work,
         next_steps=summary.next_steps,
         short_description=summary.short_description,
+        completion_summary=summary.completion_summary,
+        contribution_summary=summary.contribution_summary,
+        bottleneck_summary=summary.bottleneck_summary,
+        collaboration_summary=summary.collaboration_summary,
         status=summary.status,
         remind_at=summary.remind_at,
         participants=[

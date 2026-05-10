@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models import SessionStage, SessionStageState, VideoSession
+from app.models import SessionStage, SessionStageState, SessionSummary, SessionSummaryStatus, SessionTaskStatus, Task, VideoSession
 
 
 def _now_utc() -> datetime:
@@ -29,7 +29,12 @@ class SessionStageService:
             raise ValueError('Сессия не найдена.')
 
         now = _now_utc()
-        state = SessionStageState(session_id=session_id, current_stage=SessionStage.discussion, stage_started_at=now, updated_at=now)
+        state = SessionStageState(
+            session_id=session_id,
+            current_stage=SessionStage.task_creation,
+            stage_started_at=now,
+            updated_at=now,
+        )
         self.db.add(state)
         self.db.commit()
         self.db.refresh(state)
@@ -45,6 +50,18 @@ class SessionStageService:
         state.updated_at = now
         self.db.commit()
         self.db.refresh(state)
+        return state
+
+    def sync_stage_for_session(self, session_id: int) -> SessionStageState:
+        state = self.get_or_create(session_id)
+        derived_stage = self._derive_stage(session_id)
+        if state.current_stage != derived_stage:
+            now = _now_utc()
+            state.current_stage = derived_stage
+            state.stage_started_at = now
+            state.updated_at = now
+            self.db.commit()
+            self.db.refresh(state)
         return state
 
     def build_snapshot(self, state: SessionStageState) -> dict:
@@ -65,3 +82,22 @@ class SessionStageService:
             'updated_at': state.updated_at.isoformat() if state.updated_at else now.isoformat(),
         }
 
+    def _derive_stage(self, session_id: int) -> SessionStage:
+        summary = self.db.query(SessionSummary).filter(SessionSummary.session_id == session_id).first()
+        if summary and summary.status in {SessionSummaryStatus.completed, SessionSummaryStatus.skipped}:
+            return SessionStage.review
+
+        tasks = self.db.query(Task).filter(Task.session_id == session_id).all()
+        if not tasks:
+            return SessionStage.task_creation
+
+        if all(task.status == SessionTaskStatus.backlog for task in tasks):
+            return SessionStage.task_creation
+
+        if any(task.status in {SessionTaskStatus.in_progress, SessionTaskStatus.blocked, SessionTaskStatus.done} for task in tasks):
+            return SessionStage.execution
+
+        if any(task.status == SessionTaskStatus.assigned for task in tasks):
+            return SessionStage.task_distribution
+
+        return SessionStage.task_creation

@@ -5,6 +5,14 @@ import { useEffect, useState } from 'react';
 
 import type { SessionParticipant, SessionTask, SessionTaskStatus } from '../../types';
 
+const statusLabels: Record<SessionTaskStatus, string> = {
+  backlog: 'Бэклог',
+  assigned: 'Назначено',
+  in_progress: 'В работе',
+  blocked: 'Заблокировано',
+  done: 'Готово',
+};
+
 function toInputDateTime(value?: string | null) {
   if (!value) {
     return '';
@@ -37,7 +45,7 @@ export function TaskDetailsDrawer({
     description: '',
     assignee_id: '',
     deadline: '',
-    status: 'todo' as SessionTaskStatus,
+    status: 'backlog' as SessionTaskStatus,
     priority: 'medium' as SessionTask['priority'],
   });
 
@@ -73,13 +81,27 @@ export function TaskDetailsDrawer({
         <Box>
           <Typography variant="h6">Детали задачи</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Быстрое редактирование без перегрузки самой доски.
+            Обновите колонку, исполнителя и описание прямо из боковой панели.
           </Typography>
         </Box>
 
         <TextField label="Название" value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} />
         <TextField label="Описание" value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} multiline minRows={4} />
-        <TextField select label="Исполнитель" value={form.assignee_id} onChange={(event) => setForm((prev) => ({ ...prev, assignee_id: event.target.value }))}>
+        <TextField
+          select
+          label="Исполнитель"
+          value={form.assignee_id}
+          onChange={(event) => {
+            const nextAssigneeId = event.target.value;
+            setForm((prev) => ({
+              ...prev,
+              assignee_id: nextAssigneeId,
+              status: nextAssigneeId
+                ? (prev.status === 'backlog' ? 'assigned' : prev.status)
+                : (prev.status === 'assigned' ? 'backlog' : prev.status),
+            }));
+          }}
+        >
           <MenuItem value="">Без исполнителя</MenuItem>
           {participants.map((participant) => (
             <MenuItem key={participant.id} value={String(participant.id)}>
@@ -87,12 +109,12 @@ export function TaskDetailsDrawer({
             </MenuItem>
           ))}
         </TextField>
-        <TextField select label="Статус" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as SessionTaskStatus }))}>
-          <MenuItem value="todo">К выполнению</MenuItem>
-          <MenuItem value="in_progress">В работе</MenuItem>
-          <MenuItem value="blocked">Заблокировано</MenuItem>
-          <MenuItem value="needs_reassignment">Нужно переназначить</MenuItem>
-          <MenuItem value="done">Готово</MenuItem>
+        <TextField select label="Колонка Kanban" value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as SessionTaskStatus }))}>
+          {Object.entries(statusLabels).map(([value, label]) => (
+            <MenuItem key={value} value={value}>
+              {label}
+            </MenuItem>
+          ))}
         </TextField>
         <TextField select label="Приоритет" value={form.priority} onChange={(event) => setForm((prev) => ({ ...prev, priority: event.target.value as SessionTask['priority'] }))}>
           <MenuItem value="low">Низкий</MenuItem>

@@ -31,13 +31,19 @@ import {
 import type { SessionSummary, SessionSummaryTask, SessionTaskStatus } from '../../types';
 
 function statusLabel(status: SessionTaskStatus) {
-  if (status === 'done') {
-    return 'Сделано';
+  if (status === 'backlog') {
+    return 'Бэклог';
+  }
+  if (status === 'assigned') {
+    return 'Назначена';
   }
   if (status === 'in_progress') {
     return 'В работе';
   }
-  return 'Нужно сделать';
+  if (status === 'blocked') {
+    return 'Заблокирована';
+  }
+  return 'Готово';
 }
 
 function buildShortDescription(completedWork: string, nextSteps: string) {
@@ -103,10 +109,7 @@ export function SessionSummaryDialog({
     };
   }, [open, sessionId]);
 
-  const shortDescription = useMemo(
-    () => buildShortDescription(completedWork, nextSteps),
-    [completedWork, nextSteps],
-  );
+  const shortDescription = useMemo(() => buildShortDescription(completedWork, nextSteps), [completedWork, nextSteps]);
 
   async function handleSave() {
     setSaving(true);
@@ -163,11 +166,11 @@ export function SessionSummaryDialog({
             </Typography>
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            Зафиксируйте, что получилось сделать, и обновите статусы задач. Это займет меньше минуты.
+            Зафиксируйте результаты, вклад участников, блокеры и следующий шаг перед закрытием сессии.
           </Typography>
           {summary?.status === 'skipped' || autoFocusReminder ? (
             <Alert icon={<EventRepeatRoundedIcon fontSize="inherit" />} severity="info" sx={{ borderRadius: 3 }}>
-              Итоги были отложены. Напоминание сохранено, но их можно заполнить прямо сейчас.
+              Итоги уже откладывались ранее. Их можно заполнить сейчас и сохранить целостную историю встречи.
             </Alert>
           ) : null}
         </Stack>
@@ -176,7 +179,7 @@ export function SessionSummaryDialog({
         <Stack spacing={2}>
           {error ? <Alert severity="error">{error}</Alert> : null}
           {loading ? (
-            <Typography color="text.secondary">Загружаем данные сессии...</Typography>
+            <Typography color="text.secondary">Загружаем форму итогов...</Typography>
           ) : (
             <>
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
@@ -185,56 +188,42 @@ export function SessionSummaryDialog({
                     key={`${participant.user_id ?? participant.full_name}-${participant.role_in_session}`}
                     label={participant.full_name}
                     size="small"
-                    sx={{
-                      borderRadius: 999,
-                      background: alpha('#165DFF', 0.08),
-                    }}
+                    sx={{ borderRadius: 999, background: alpha('#165DFF', 0.08) }}
                   />
                 ))}
               </Stack>
 
               <TextField
-                label="Что было сделано на сессии"
+                label="Что было сделано"
                 value={completedWork}
                 onChange={(event) => setCompletedWork(event.target.value)}
                 multiline
                 minRows={4}
                 fullWidth
-                placeholder="Например: согласовали структуру проекта, распределили задачи и подготовили дедлайны."
               />
+
+              {summary?.completion_summary || summary?.contribution_summary || summary?.bottleneck_summary || summary?.collaboration_summary ? (
+                <PaperSummary summary={summary} />
+              ) : null}
 
               <Box>
                 <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                   <HistoryRoundedIcon color="action" />
-                  <Typography fontWeight={800}>Задачи сессии</Typography>
+                  <Typography fontWeight={800}>Итоги по задачам</Typography>
                 </Stack>
                 {tasks.length === 0 ? (
                   <Alert severity="info" sx={{ borderRadius: 3 }}>
-                    На этой сессии задачи не создавались.
+                    К этой сессии пока не привязаны задачи.
                   </Alert>
                 ) : (
                   <Stack spacing={1.25}>
                     {tasks.map((task, index) => (
-                      <Box
-                        key={`${task.task_id ?? index}-${task.title}`}
-                        sx={{
-                          p: 1.5,
-                          borderRadius: 3,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          backgroundColor: 'rgba(22, 93, 255, 0.03)',
-                        }}
-                      >
-                        <Stack
-                          direction={{ xs: 'column', md: 'row' }}
-                          spacing={1}
-                          alignItems={{ xs: 'stretch', md: 'center' }}
-                          justifyContent="space-between"
-                        >
+                      <Box key={`${task.task_id ?? index}-${task.title}`} sx={{ p: 1.5, borderRadius: 3, border: '1px solid', borderColor: 'divider', backgroundColor: 'rgba(22, 93, 255, 0.03)' }}>
+                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }} justifyContent="space-between">
                           <Stack spacing={0.5}>
                             <Typography fontWeight={700}>{task.title}</Typography>
                             <Typography variant="body2" color="text.secondary">
-                              {task.assignee_name ? `Исполнитель: ${task.assignee_name}` : 'Исполнитель не назначен'}
+                              {task.assignee_name ? `Ответственный: ${task.assignee_name}` : 'Ответственный не назначен'}
                             </Typography>
                           </Stack>
 
@@ -251,8 +240,10 @@ export function SessionSummaryDialog({
                                 )));
                               }}
                             >
-                              <MenuItem value="todo">{statusLabel('todo')}</MenuItem>
+                              <MenuItem value="backlog">{statusLabel('backlog')}</MenuItem>
+                              <MenuItem value="assigned">{statusLabel('assigned')}</MenuItem>
                               <MenuItem value="in_progress">{statusLabel('in_progress')}</MenuItem>
+                              <MenuItem value="blocked">{statusLabel('blocked')}</MenuItem>
                               <MenuItem value="done">{statusLabel('done')}</MenuItem>
                             </Select>
                           </FormControl>
@@ -266,13 +257,12 @@ export function SessionSummaryDialog({
               <Divider />
 
               <TextField
-                label="Какие задачи остались / следующие шаги"
+                label="Следующие шаги"
                 value={nextSteps}
                 onChange={(event) => setNextSteps(event.target.value)}
                 multiline
                 minRows={3}
                 fullWidth
-                placeholder="Например: доделать экран истории, проверить миграции и подготовить демо."
               />
 
               <TextField
@@ -280,7 +270,7 @@ export function SessionSummaryDialog({
                 value={shortDescription}
                 fullWidth
                 InputProps={{ readOnly: true }}
-                helperText="Формируется автоматически и используется в карточке истории."
+                helperText="Поле заполняется автоматически на основе текста итогов."
               />
             </>
           )}
@@ -288,7 +278,7 @@ export function SessionSummaryDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
         <Button onClick={handleSkip} disabled={saving || loading} color="inherit">
-          Пропустить и напомнить завтра
+          Отложить до завтра
         </Button>
         <Button onClick={onClose} disabled={saving}>
           Закрыть
@@ -298,5 +288,16 @@ export function SessionSummaryDialog({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+function PaperSummary({ summary }: { summary: SessionSummary }) {
+  return (
+    <Stack spacing={1}>
+      {summary.completion_summary ? <Alert severity="success">{summary.completion_summary}</Alert> : null}
+      {summary.contribution_summary ? <Alert severity="info">{summary.contribution_summary}</Alert> : null}
+      {summary.bottleneck_summary ? <Alert severity="warning">{summary.bottleneck_summary}</Alert> : null}
+      {summary.collaboration_summary ? <Alert severity="info">{summary.collaboration_summary}</Alert> : null}
+    </Stack>
   );
 }

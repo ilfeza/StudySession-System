@@ -2,16 +2,11 @@ import AddTaskRoundedIcon from '@mui/icons-material/AddTaskRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import { Alert, Button, Dialog, DialogContent, DialogTitle, IconButton, Menu, MenuItem, Paper, Stack, Typography } from '@mui/material';
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 
 import { generateAiTasks } from '../../api/ai';
 import type { AiTaskSuggestion, ChatMessage, SessionParticipant, SessionTask, SessionTaskStatus } from '../../types';
-import {
-  chooseBestParticipant,
-  getTaskAgeMinutes,
-  type SessionNotification,
-  type SessionSuggestion,
-} from '../../pages/video-session/sessionIntelligence';
+import { chooseBestParticipant, type SessionNotification, type SessionSuggestion } from '../../pages/video-session/sessionIntelligence';
 import { BoardHeader } from './BoardHeader';
 import { KanbanColumn } from './KanbanColumn';
 import { TaskCard } from './TaskCard';
@@ -19,11 +14,12 @@ import { TaskCreateForm } from './TaskCreateForm';
 import { TaskDetailsDrawer } from './TaskDetailsDrawer';
 import { useSessionTasks, type SessionTasksController } from './useSessionTasks';
 
-const columnConfig: Array<{ status: 'todo' | 'in_progress' | 'blocked' | 'done'; title: string; emptyLabel: string }> = [
-  { status: 'todo', title: 'К выполнению', emptyLabel: 'Добавьте первую задачу' },
-  { status: 'in_progress', title: 'В работе', emptyLabel: 'Здесь появятся задачи в работе' },
-  { status: 'blocked', title: 'Заблокировано', emptyLabel: 'Заблокированных задач пока нет' },
-  { status: 'done', title: 'Готово', emptyLabel: 'Завершённые задачи появятся здесь' },
+const columnConfig: Array<{ status: SessionTaskStatus; title: string; emptyLabel: string }> = [
+  { status: 'backlog', title: 'Бэклог', emptyLabel: 'Соберите задачи для следующего шага' },
+  { status: 'assigned', title: 'Назначено', emptyLabel: 'Распределенные задачи появятся здесь' },
+  { status: 'in_progress', title: 'В работе', emptyLabel: 'Активная работа начнется здесь' },
+  { status: 'blocked', title: 'Заблокировано', emptyLabel: 'Здесь будут видны блокеры' },
+  { status: 'done', title: 'Готово', emptyLabel: 'Завершенные задачи появятся здесь' },
 ];
 
 interface EditableAiTask extends AiTaskSuggestion {
@@ -87,21 +83,40 @@ export function TaskPanel({
   const [reassigningTask, setReassigningTask] = useState<SessionTask | null>(null);
   const [reassignAssigneeId, setReassignAssigneeId] = useState('');
   const [engineSuggestions, setEngineSuggestions] = useState<SessionSuggestion[]>([]);
-  const previousStatusRef = useRef<Map<number, SessionTaskStatus>>(new Map());
-  const handledBlockedRef = useRef<Set<number>>(new Set());
-  const handledOfflineRef = useRef<Set<string>>(new Set());
-  const lastHandledCreateKeyRef = useRef(0);
+  const [lastHandledCreateKey, setLastHandledCreateKey] = useState(0);
 
   useEffect(() => {
-    if (openCreateKey > 0 && openCreateKey !== lastHandledCreateKeyRef.current) {
-      lastHandledCreateKeyRef.current = openCreateKey;
+    if (openCreateKey > 0 && openCreateKey !== lastHandledCreateKey) {
+      setLastHandledCreateKey(openCreateKey);
       setCreateOpen(true);
     }
-  }, [openCreateKey]);
+  }, [lastHandledCreateKey, openCreateKey]);
 
   useEffect(() => {
     onEngineSuggestionsChange?.(engineSuggestions);
   }, [engineSuggestions, onEngineSuggestionsChange]);
+
+  useEffect(() => {
+    if (!isModerator) {
+      return;
+    }
+
+    const liveSet = new Set(liveParticipantNames.map((name) => name.trim().toLowerCase()));
+    const staleTasks = tasks.filter((task) => task.assignee?.full_name && !liveSet.has(task.assignee.full_name.trim().toLowerCase()) && task.status !== 'done');
+    if (!staleTasks.length) {
+      return;
+    }
+
+    const suggestions = staleTasks.map((task) => ({
+      id: `offline-${task.id}`,
+      source: 'engine' as const,
+      action: 'reassign_task' as const,
+      taskId: task.id,
+      title: 'Переназначить задачу',
+      description: `Исполнитель задачи "${task.title}" неактивен. Нужна новая раздача.`,
+    }));
+    setEngineSuggestions((prev) => [...prev.filter((item) => !suggestions.some((next) => next.id === item.id)), ...suggestions].slice(-8));
+  }, [isModerator, liveParticipantNames, tasks]);
 
   const filteredTasks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -122,105 +137,16 @@ export function TaskPanel({
     });
   }, [assigneeFilter, query, tasks]);
 
-  const tasksByStatus = useMemo<Record<'todo' | 'in_progress' | 'blocked' | 'done', SessionTask[]>>(
+  const tasksByStatus = useMemo<Record<SessionTaskStatus, SessionTask[]>>(
     () => ({
-      todo: filteredTasks.filter((task) => task.status === 'todo' || task.status === 'needs_reassignment'),
+      backlog: filteredTasks.filter((task) => task.status === 'backlog'),
+      assigned: filteredTasks.filter((task) => task.status === 'assigned'),
       in_progress: filteredTasks.filter((task) => task.status === 'in_progress'),
       blocked: filteredTasks.filter((task) => task.status === 'blocked'),
       done: filteredTasks.filter((task) => task.status === 'done'),
     }),
     [filteredTasks],
   );
-
-  useEffect(() => {
-    const nextSuggestions: SessionSuggestion[] = [];
-    const previousStatuses = previousStatusRef.current;
-
-    tasks.forEach((task) => {
-      const previousStatus = previousStatuses.get(task.id);
-
-      if (previousStatus && previousStatus !== 'done' && task.status === 'done') {
-        const nextTask = tasks.find((item) => item.id !== task.id && (item.status === 'todo' || item.status === 'needs_reassignment') && item.assignee_id == null);
-        if (nextTask) {
-          nextSuggestions.push({
-            id: `next-${task.id}-${nextTask.id}`,
-            source: 'engine',
-            action: 'assign_next',
-            taskId: nextTask.id,
-            title: 'Готова следующая задача',
-            description: `Задачу "${nextTask.title}" можно сразу отдать следующему участнику.`,
-          });
-          onNotify?.({ id: `done-${task.id}`, message: `Следующая задача готова: ${nextTask.title}`, severity: 'info' });
-        }
-      }
-
-      previousStatuses.set(task.id, task.status);
-
-      const ageMinutes = getTaskAgeMinutes(task);
-      if ((task.status === 'blocked' || task.status === 'in_progress') && ageMinutes >= 20 && !handledBlockedRef.current.has(task.id)) {
-        handledBlockedRef.current.add(task.id);
-        nextSuggestions.push({
-          id: `stale-${task.id}`,
-          source: 'engine',
-          action: 'reassign_task',
-          taskId: task.id,
-          title: 'Задаче нужна помощь',
-          description: `Задача "${task.title}" давно не двигается. Возможно, стоит помочь или переназначить её.`,
-        });
-        onNotify?.({ id: `stale-toast-${task.id}`, message: `Проверьте задачу: ${task.title}`, severity: 'warning' });
-      }
-    });
-
-    setEngineSuggestions((prev) => {
-      const map = new Map(prev.map((item) => [item.id, item]));
-      nextSuggestions.forEach((item) => map.set(item.id, item));
-      return [...map.values()].slice(-8);
-    });
-  }, [tasks, onNotify]);
-
-  useEffect(() => {
-    if (!isModerator || !liveParticipantNames.length) {
-      return;
-    }
-
-    const liveSet = new Set(liveParticipantNames.map((name) => name.trim().toLowerCase()));
-    const offlineParticipants = participants.filter((participant) => !liveSet.has(participant.full_name.trim().toLowerCase()));
-
-    offlineParticipants.forEach((participant) => {
-      const marker = `${participant.id}-${participant.full_name}`;
-      if (handledOfflineRef.current.has(marker)) {
-        return;
-      }
-      handledOfflineRef.current.add(marker);
-
-      const affectedTasks = tasks.filter((task) => task.assignee_id === participant.id && task.status !== 'done');
-      if (!affectedTasks.length) {
-        return;
-      }
-
-      onNotify?.({
-        id: `offline-${participant.id}`,
-        message: `${participant.full_name} вышел из сессии, ${affectedTasks.length} задач(и) нужно переназначить`,
-        severity: 'warning',
-      });
-
-      affectedTasks.forEach((task) => {
-        void patchTask(task.id, { status: 'needs_reassignment', assignee_id: null });
-      });
-
-      setEngineSuggestions((prev) => [
-        ...prev,
-        ...affectedTasks.map((task) => ({
-          id: `offline-${task.id}`,
-          source: 'engine' as const,
-          action: 'reassign_task' as const,
-          taskId: task.id,
-          title: 'Нужно переназначение',
-          description: `Задача "${task.title}" осталась без исполнителя.`,
-        })),
-      ].slice(-8));
-    });
-  }, [isModerator, liveParticipantNames, participants, tasks, patchTask, onNotify]);
 
   async function handleDrop(nextStatus: SessionTaskStatus) {
     if (draggedTaskId == null) {
@@ -235,7 +161,11 @@ export function TaskPanel({
       return;
     }
 
-    await patchTask(draggedTask.id, { status: nextStatus });
+    const payload: { status: SessionTaskStatus; assignee_id?: number | null } = { status: nextStatus };
+    if (nextStatus === 'backlog') {
+      payload.assignee_id = null;
+    }
+    await patchTask(draggedTask.id, payload);
   }
 
   async function requestAiTasks() {
@@ -275,12 +205,13 @@ export function TaskPanel({
     setAiError('');
     try {
       for (const task of normalizedTasks) {
+        const assigneeId = resolveAssigneeId(participants, task.assignee);
         await createTask({
           title: task.title,
           description: task.description,
-          assignee_id: resolveAssigneeId(participants, task.assignee),
+          assignee_id: assigneeId,
           deadline: null,
-          status: 'todo',
+          status: assigneeId ? 'assigned' : 'backlog',
           priority: 'medium',
         });
       }
@@ -305,7 +236,7 @@ export function TaskPanel({
       return;
     }
 
-    await patchTask(task.id, { assignee_id: nextParticipant.id, status: 'todo' });
+    await patchTask(task.id, { assignee_id: nextParticipant.id, status: 'assigned' });
     onNotify?.({ id: `reassigned-${task.id}`, message: `Задача назначена: ${nextParticipant.full_name}`, severity: 'success' });
     setEngineSuggestions((prev) => prev.filter((item) => item.taskId !== task.id));
   }
@@ -317,12 +248,12 @@ export function TaskPanel({
     const nextAssigneeId = reassignAssigneeId ? Number(reassignAssigneeId) : null;
     await patchTask(reassigningTask.id, {
       assignee_id: nextAssigneeId,
-      status: nextAssigneeId ? 'todo' : 'needs_reassignment',
+      status: nextAssigneeId ? 'assigned' : 'backlog',
     });
     const nextAssignee = participants.find((participant) => participant.id === nextAssigneeId);
     onNotify?.({
       id: `manual-reassign-${reassigningTask.id}`,
-      message: nextAssignee ? `Задача переназначена: ${nextAssignee.full_name}` : 'Задача отмечена для переназначения',
+      message: nextAssignee ? `Задача переназначена: ${nextAssignee.full_name}` : 'Задача возвращена в бэклог',
       severity: 'success',
     });
     setReassigningTask(null);
@@ -464,7 +395,7 @@ export function TaskPanel({
                   onChange={(event) => setReassignAssigneeId(event.target.value)}
                   style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid #d1d5db', background: '#fff' }}
                 >
-                  <option value="">Нужно переназначить</option>
+                  <option value="">Вернуть в бэклог</option>
                   {participants.map((participant) => (
                     <option key={participant.id} value={String(participant.id)}>
                       {participant.full_name}
@@ -495,7 +426,7 @@ export function TaskPanel({
               </Button>
             </Stack>
 
-            {aiLoading ? <Alert severity="info">AI анализирует сессию...</Alert> : null}
+            {aiLoading ? <Alert severity="info">AI анализирует этап создания задач...</Alert> : null}
             {!aiLoading && !aiTasks.length && !aiError ? <Alert severity="info">Пока нет AI-предложений.</Alert> : null}
 
             <Stack spacing={1.25}>

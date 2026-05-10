@@ -104,6 +104,42 @@ def seed_demo_data():
                 'skills': 'analytics,research,summary',
                 'workload_limit': 2,
             },
+            {
+                'email': 'admin',
+                'full_name': 'Администратор платформы',
+                'role': UserRole.admin,
+                'skills': 'admin,moderation,analytics',
+                'workload_limit': 6,
+                'password': 'admin',
+            },
+            {
+                'email': 'analyst.demo@study.local',
+                'full_name': 'Демо аналитик',
+                'role': UserRole.analyst,
+                'skills': 'analytics,dashboards,reports',
+                'workload_limit': 2,
+            },
+            {
+                'email': 'friend.one@study.local',
+                'full_name': 'Елена Смирнова',
+                'role': UserRole.student,
+                'skills': 'marketing,notes',
+                'workload_limit': 2,
+            },
+            {
+                'email': 'friend.two@study.local',
+                'full_name': 'Максим Волков',
+                'role': UserRole.student,
+                'skills': 'frontend,ux',
+                'workload_limit': 3,
+            },
+            {
+                'email': 'friend.three@study.local',
+                'full_name': 'Ольга Николаева',
+                'role': UserRole.student,
+                'skills': 'research,analytics',
+                'workload_limit': 2,
+            },
         ]
 
         users: dict[str, User] = {}
@@ -113,7 +149,7 @@ def seed_demo_data():
                 user = User(
                     email=payload['email'],
                     full_name=payload['full_name'],
-                    hashed_password=hash_password('StudyPass123'),
+                    hashed_password=hash_password(payload.get('password', 'StudyPass123')),
                     role=payload['role'],
                     skills=payload['skills'],
                     workload_limit=payload['workload_limit'],
@@ -123,6 +159,7 @@ def seed_demo_data():
                 db.flush()
             else:
                 user.full_name = payload['full_name']
+                user.role = payload['role']
                 user.skills = payload['skills']
                 user.workload_limit = payload['workload_limit']
             users[payload['email']] = user
@@ -269,7 +306,7 @@ def seed_demo_data():
                 'title': 'Проверить макеты для экрана сессии',
                 'description': 'Сверить состояние чата, панели участников и адаптивности под ноутбук.',
                 'priority': TaskPriority.medium,
-                'status': SessionTaskStatus.todo,
+                'status': SessionTaskStatus.assigned,
                 'assignee_email': 'seed.student1@study.local',
             },
             {
@@ -342,6 +379,7 @@ def seed_demo_data():
                     sender_id=author.id,
                     sender_name=author.full_name,
                     message=message,
+                    stage='execution',
                 ))
 
         if db.query(GroupAnnouncement).count() == 0:
@@ -382,6 +420,9 @@ def seed_demo_data():
                 Friendship(requester_id=owner.id, addressee_id=users['seed.student1@study.local'].id, status=FriendshipStatus.accepted),
                 Friendship(requester_id=users['seed.student2@study.local'].id, addressee_id=owner.id, status=FriendshipStatus.accepted),
                 Friendship(requester_id=users['seed.student4@study.local'].id, addressee_id=users['seed.student3@study.local'].id, status=FriendshipStatus.pending),
+                Friendship(requester_id=users['friend.one@study.local'].id, addressee_id=users['seed.student1@study.local'].id, status=FriendshipStatus.accepted),
+                Friendship(requester_id=users['friend.two@study.local'].id, addressee_id=users['seed.student2@study.local'].id, status=FriendshipStatus.accepted),
+                Friendship(requester_id=users['friend.three@study.local'].id, addressee_id=owner.id, status=FriendshipStatus.pending),
             ])
 
         if db.query(Conversation).count() == 0:
@@ -482,15 +523,18 @@ async def chat_ws(websocket: WebSocket, session_id: int):
                 continue
 
             SessionService(db).touch_participant(session_id, user.id)
-            message = SessionService(db).save_message(session_id, user.id, user.full_name, message_text)
+            task_id = data.get('task_id')
+            message = SessionService(db).save_message(session_id, user.id, user.full_name, message_text, task_id)
             await chat_manager.broadcast(
                 session_id,
                 {
                     'event': 'chat_message',
                     'payload': {
                         'id': message.id,
+                        'task_id': message.task_id,
                         'sender_name': message.sender_name,
                         'message': message.message,
+                        'stage': message.stage,
                         'created_at': message.created_at.isoformat(),
                     },
                 },
@@ -553,7 +597,7 @@ async def widgets_ws(websocket: WebSocket, session_id: int):
     await websocket.send_json({'event': 'pomodoro_state', 'payload': pomodoro_service.build_snapshot(pomodoro_state)})
 
     stage_service = SessionStageService(db)
-    stage_state = stage_service.get_or_create(session_id)
+    stage_state = stage_service.sync_stage_for_session(session_id)
     await websocket.send_json({'event': 'stage_state', 'payload': stage_service.build_snapshot(stage_state)})
 
     try:

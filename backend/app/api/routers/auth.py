@@ -19,6 +19,7 @@ def _user_read(user) -> UserRead:
         skills=[skill for skill in user.skills.split(',') if skill],
         reliability_score=user.reliability_score,
         workload_limit=user.workload_limit,
+        is_active=user.is_active,
     )
 
 

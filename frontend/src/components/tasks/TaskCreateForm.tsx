@@ -4,6 +4,14 @@ import { useState } from 'react';
 
 import type { SessionParticipant, SessionTaskStatus, Task } from '../../types';
 
+const statusLabels: Record<SessionTaskStatus, string> = {
+  backlog: 'Бэклог',
+  assigned: 'Назначено',
+  in_progress: 'В работе',
+  blocked: 'Заблокировано',
+  done: 'Готово',
+};
+
 interface Props {
   participants: SessionParticipant[];
   disabled?: boolean;
@@ -30,7 +38,7 @@ export function TaskCreateForm({
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [status, setStatus] = useState<SessionTaskStatus>('todo');
+  const [status, setStatus] = useState<SessionTaskStatus>('backlog');
   const [priority, setPriority] = useState<Task['priority']>('medium');
   const [submitting, setSubmitting] = useState(false);
 
@@ -53,7 +61,7 @@ export function TaskCreateForm({
       setDescription('');
       setAssigneeId('');
       setDeadline('');
-      setStatus('todo');
+      setStatus('backlog');
       setPriority('medium');
       onSubmitted?.();
     } finally {
@@ -65,7 +73,25 @@ export function TaskCreateForm({
     <Stack spacing={1.5} sx={{ pt: 1 }}>
       <TextField label="Название задачи" value={title} onChange={(event) => setTitle(event.target.value)} disabled={disabled || submitting} required />
       <TextField label="Описание" value={description} onChange={(event) => setDescription(event.target.value)} disabled={disabled || submitting} multiline minRows={4} />
-      <TextField select label="Исполнитель" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} disabled={disabled || submitting}>
+      <TextField
+        select
+        label="Исполнитель"
+        value={assigneeId}
+        onChange={(event) => {
+          const nextAssigneeId = event.target.value;
+          setAssigneeId(nextAssigneeId);
+          setStatus((prev) => {
+            if (nextAssigneeId && prev === 'backlog') {
+              return 'assigned';
+            }
+            if (!nextAssigneeId && prev === 'assigned') {
+              return 'backlog';
+            }
+            return prev;
+          });
+        }}
+        disabled={disabled || submitting}
+      >
         <MenuItem value="">Без исполнителя</MenuItem>
         {participants.map((participant) => (
           <MenuItem key={participant.id} value={String(participant.id)}>
@@ -73,12 +99,12 @@ export function TaskCreateForm({
           </MenuItem>
         ))}
       </TextField>
-      <TextField select label="Статус" value={status} onChange={(event) => setStatus(event.target.value as SessionTaskStatus)} disabled={disabled || submitting}>
-        <MenuItem value="todo">К выполнению</MenuItem>
-        <MenuItem value="in_progress">В работе</MenuItem>
-        <MenuItem value="blocked">Заблокировано</MenuItem>
-        <MenuItem value="needs_reassignment">Нужно переназначить</MenuItem>
-        <MenuItem value="done">Готово</MenuItem>
+      <TextField select label="Колонка Kanban" value={status} onChange={(event) => setStatus(event.target.value as SessionTaskStatus)} disabled={disabled || submitting}>
+        {Object.entries(statusLabels).map(([value, label]) => (
+          <MenuItem key={value} value={value}>
+            {label}
+          </MenuItem>
+        ))}
       </TextField>
       <TextField select label="Приоритет" value={priority} onChange={(event) => setPriority(event.target.value as Task['priority'])} disabled={disabled || submitting}>
         <MenuItem value="low">Низкий</MenuItem>

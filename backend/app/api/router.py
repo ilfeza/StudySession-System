@@ -1,9 +1,10 @@
 ﻿from fastapi import APIRouter
 
-from app.api.routers import ai, auth, chat, dashboard, files, groups, ml, pomodoro, sessions, social, tasks, users
+from app.api.routers import admin, ai, auth, chat, dashboard, files, groups, ml, pomodoro, sessions, social, tasks, users
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix='/auth', tags=['Аутентификация'])
+api_router.include_router(admin.router, prefix='/admin', tags=['Администрирование'])
 api_router.include_router(dashboard.router, prefix='/dashboard', tags=['Дашборд'])
 api_router.include_router(groups.router, prefix='/groups', tags=['Группы'])
 api_router.include_router(sessions.router, prefix='/sessions', tags=['Видеосессии'])

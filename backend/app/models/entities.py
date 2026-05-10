@@ -2,6 +2,7 @@
 
 import enum
 from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import (
     Boolean,
@@ -23,6 +24,7 @@ class UserRole(str, enum.Enum):
     student = 'student'
     instructor = 'instructor'
     admin = 'admin'
+    analyst = 'analyst'
 
 
 class GroupVisibility(str, enum.Enum):
@@ -56,10 +58,10 @@ class AssignmentStatus(str, enum.Enum):
 
 
 class SessionTaskStatus(str, enum.Enum):
-    todo = 'todo'
+    backlog = 'backlog'
+    assigned = 'assigned'
     in_progress = 'in_progress'
     blocked = 'blocked'
-    needs_reassignment = 'needs_reassignment'
     done = 'done'
 
 
@@ -269,6 +271,10 @@ class SessionSummary(Base):
     completed_work: Mapped[str] = mapped_column(Text, default='', nullable=False)
     next_steps: Mapped[str] = mapped_column(Text, default='', nullable=False)
     short_description: Mapped[str] = mapped_column(String(300), default='', nullable=False)
+    completion_summary: Mapped[str] = mapped_column(Text, default='', nullable=False)
+    contribution_summary: Mapped[str] = mapped_column(Text, default='', nullable=False)
+    bottleneck_summary: Mapped[str] = mapped_column(Text, default='', nullable=False)
+    collaboration_summary: Mapped[str] = mapped_column(Text, default='', nullable=False)
     status: Mapped[SessionSummaryStatus] = mapped_column(
         Enum(SessionSummaryStatus),
         default=SessionSummaryStatus.draft,
@@ -315,7 +321,7 @@ class SessionSummaryTask(Base):
     deadline_snapshot: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status_at_summary: Mapped[SessionTaskStatus] = mapped_column(
         Enum(SessionTaskStatus),
-        default=SessionTaskStatus.todo,
+        default=SessionTaskStatus.backlog,
         nullable=False,
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -338,7 +344,7 @@ class Task(Base):
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     status: Mapped[SessionTaskStatus] = mapped_column(
         Enum(SessionTaskStatus),
-        default=SessionTaskStatus.todo,
+        default=SessionTaskStatus.backlog,
         nullable=False,
     )
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -374,18 +380,21 @@ class ChatMessage(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     session_id: Mapped[int] = mapped_column(ForeignKey('video_sessions.id'), nullable=False, index=True)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey('tasks.id', ondelete='SET NULL'), nullable=True, index=True)
     sender_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
     sender_name: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    stage: Mapped[str] = mapped_column(String(50), default='', nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     session: Mapped[VideoSession] = relationship('VideoSession', back_populates='chat_messages')
 
 
 class SessionStage(str, enum.Enum):
-    discussion = 'discussion'
-    work = 'work'
-    summary = 'summary'
+    task_creation = 'task_creation'
+    task_distribution = 'task_distribution'
+    execution = 'execution'
+    review = 'review'
 
 
 class SessionStageState(Base):
@@ -397,7 +406,7 @@ class SessionStageState(Base):
 
     current_stage: Mapped[SessionStage] = mapped_column(
         Enum(SessionStage),
-        default=SessionStage.discussion,
+        default=SessionStage.task_creation,
         nullable=False,
     )
     stage_started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -472,7 +481,12 @@ class GroupMaterial(Base):
     kind: Mapped[GroupMaterialKind] = mapped_column(Enum(GroupMaterialKind), nullable=False)
     url: Mapped[str] = mapped_column(Text, default='', nullable=False)
     original_name: Mapped[str] = mapped_column(String(255), default='', nullable=False)
-    stored_name: Mapped[str] = mapped_column(String(255), default='', nullable=False, unique=True)
+    stored_name: Mapped[str] = mapped_column(
+        String(255),
+        default=lambda: f'group-material-{uuid4().hex}',
+        nullable=False,
+        unique=True,
+    )
     mime_type: Mapped[str] = mapped_column(String(255), default='', nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
