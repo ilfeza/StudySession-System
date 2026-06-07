@@ -1,41 +1,31 @@
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import { Alert, Box, Button, Chip, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { buildChatSuggestion, type SessionSuggestion } from '../pages/video-session/sessionIntelligence';
-import type { ChatMessage, SessionTask } from '../types';
+import type { ChatMessage } from '../types';
 
 interface Props {
   sessionId: number;
   variant?: 'default' | 'session';
   showHeader?: boolean;
-  tasks?: SessionTask[];
-  isModerator?: boolean;
   messages?: ChatMessage[];
   onMessagesChange?: (messages: ChatMessage[]) => void;
-  onSuggestionCreate?: (suggestion: SessionSuggestion) => void;
-  onSuggestionApply?: (suggestion: SessionSuggestion) => void;
 }
 
 export function ChatPanel({
   sessionId,
   variant = 'default',
   showHeader = true,
-  tasks = [],
-  isModerator = false,
   messages: externalMessages,
   onMessagesChange,
-  onSuggestionCreate,
-  onSuggestionApply,
 }: Props) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>(externalMessages ?? []);
   const [value, setValue] = useState('');
   const [error, setError] = useState('');
-  const [suggestionsByMessage, setSuggestionsByMessage] = useState<Record<number, SessionSuggestion>>({});
   const listRef = useRef<HTMLDivElement>(null);
   const isSessionVariant = variant === 'session';
 
@@ -87,18 +77,6 @@ export function ChatPanel({
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    const next: Record<number, SessionSuggestion> = {};
-    messages.forEach((message) => {
-      const suggestion = buildChatSuggestion(message, tasks);
-      if (suggestion && message.id != null) {
-        next[message.id] = suggestion;
-        onSuggestionCreate?.(suggestion);
-      }
-    });
-    setSuggestionsByMessage(next);
-  }, [messages, tasks, onSuggestionCreate]);
-
   function send() {
     if (!value.trim()) {
       return;
@@ -128,7 +106,7 @@ export function ChatPanel({
         <Stack spacing={0.5}>
           <Typography variant="h6">{isSessionVariant ? 'Чат встречи' : 'Чат сессии'}</Typography>
           <Typography variant="body2" color="text.secondary">
-            Сообщения команды и AI-подсказки в одном потоке.
+            Сообщения команды в одном потоке.
           </Typography>
         </Stack>
       ) : null}
@@ -153,7 +131,6 @@ export function ChatPanel({
         <Stack spacing={1}>
           {messages.map((msg) => {
             const isOwn = (msg.sender_id != null && user?.id === msg.sender_id) || user?.full_name === msg.sender_name;
-            const suggestion = suggestionsByMessage[msg.id];
 
             return (
               <Stack key={msg.id} alignItems={isOwn ? 'flex-end' : 'flex-start'}>
@@ -176,17 +153,6 @@ export function ChatPanel({
                     {msg.message}
                   </Typography>
                 </Box>
-                {suggestion ? (
-                  <Stack direction="row" spacing={1} sx={{ mt: 0.75 }}>
-                    <Chip
-                      label={suggestion.title}
-                      variant="outlined"
-                      onClick={isModerator ? () => onSuggestionApply?.(suggestion) : undefined}
-                      color={isModerator ? 'primary' : 'default'}
-                    />
-                    {!isModerator ? <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>Ожидает модератора</Typography> : null}
-                  </Stack>
-                ) : null}
               </Stack>
             );
           })}
@@ -215,12 +181,6 @@ export function ChatPanel({
             <SendRoundedIcon />
           </IconButton>
         </Stack>
-
-        {isModerator ? (
-          <Button variant="outlined" onClick={() => Object.values(suggestionsByMessage).forEach((item) => onSuggestionApply?.(item))} disabled={!Object.keys(suggestionsByMessage).length} sx={{ mt: 1 }}>
-            Применить AI-подсказки
-          </Button>
-        ) : null}
       </Box>
     </Paper>
   );

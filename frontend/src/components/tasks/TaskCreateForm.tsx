@@ -3,6 +3,7 @@ import { Button, MenuItem, Stack, TextField } from '@mui/material';
 import { useState } from 'react';
 
 import type { SessionParticipant, SessionTaskStatus, Task } from '../../types';
+import { SkillsTagInput } from '../SkillsTagInput';
 
 const statusLabels: Record<SessionTaskStatus, string> = {
   backlog: 'Бэклог',
@@ -24,6 +25,7 @@ interface Props {
     deadline: string | null;
     status: SessionTaskStatus;
     priority: Task['priority'];
+    required_skills: string[];
   }) => Promise<void>;
 }
 
@@ -38,12 +40,13 @@ export function TaskCreateForm({
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
   const [deadline, setDeadline] = useState('');
+  const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
   const [status, setStatus] = useState<SessionTaskStatus>('backlog');
   const [priority, setPriority] = useState<Task['priority']>('medium');
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
-    if (!title.trim()) {
+    if (!title.trim() || !deadline) {
       return;
     }
 
@@ -53,14 +56,16 @@ export function TaskCreateForm({
         title: title.trim(),
         description: description.trim(),
         assignee_id: assigneeId ? Number(assigneeId) : null,
-        deadline: deadline || null,
+        deadline,
         status,
         priority,
+        required_skills: requiredSkills,
       });
       setTitle('');
       setDescription('');
       setAssigneeId('');
       setDeadline('');
+      setRequiredSkills([]);
       setStatus('backlog');
       setPriority('medium');
       onSubmitted?.();
@@ -110,10 +115,26 @@ export function TaskCreateForm({
         <MenuItem value="low">Низкий</MenuItem>
         <MenuItem value="medium">Средний</MenuItem>
         <MenuItem value="high">Высокий</MenuItem>
-        <MenuItem value="critical">Критичный</MenuItem>
+        <MenuItem value="critical">Критический</MenuItem>
       </TextField>
-      <TextField label="Дедлайн" type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} disabled={disabled || submitting} InputLabelProps={{ shrink: true }} />
-      <Button variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={handleSubmit} disabled={disabled || submitting || !title.trim()}>
+      <SkillsTagInput
+        value={requiredSkills}
+        onChange={setRequiredSkills}
+        label="Требуемые навыки"
+        helperText="Укажите навыки, которые нужны для этой задачи. Они будут использоваться при распределении."
+        disabled={disabled || submitting}
+      />
+      <TextField
+        label="Дедлайн"
+        type="datetime-local"
+        value={deadline}
+        onChange={(event) => setDeadline(event.target.value)}
+        disabled={disabled || submitting}
+        required
+        helperText="Укажите время, к которому задача должна быть выполнена"
+        InputLabelProps={{ shrink: true }}
+      />
+      <Button variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={handleSubmit} disabled={disabled || submitting || !title.trim() || !deadline}>
         {submitLabel}
       </Button>
     </Stack>

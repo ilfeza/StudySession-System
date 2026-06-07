@@ -89,12 +89,12 @@ function DeviceSettingsDialog({
 }) {
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Device Settings</DialogTitle>
+      <DialogTitle>Настройки устройств</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField label="Microphone Device ID" value={preferences.audioDeviceId} onChange={(event) => onPreferencesChange({ audioDeviceId: event.target.value })} />
-          <TextField label="Camera Device ID" value={preferences.videoDeviceId} onChange={(event) => onPreferencesChange({ videoDeviceId: event.target.value })} />
-          <Alert severity="info">If device IDs are empty, the browser default device will be used.</Alert>
+          <TextField label="ID микрофона" value={preferences.audioDeviceId} onChange={(event) => onPreferencesChange({ audioDeviceId: event.target.value })} />
+          <TextField label="ID камеры" value={preferences.videoDeviceId} onChange={(event) => onPreferencesChange({ videoDeviceId: event.target.value })} />
+          <Alert severity="info">Если ID устройств пустые, будет использовано устройство по умолчанию в браузере.</Alert>
         </Stack>
       </DialogContent>
     </Dialog>
@@ -240,7 +240,7 @@ export function MeetingRoomScreen({
   }
 
   const sidebarContent = sidebar === 'chat' ? (
-    <SidebarShell title="Stage-Aware Chat" subtitle="Global chat with AI suggestions">
+    <SidebarShell title="Чат сессии" subtitle="Общий чат команды">
       <ChatPanel
         sessionId={sessionId}
         variant="session"
@@ -254,7 +254,7 @@ export function MeetingRoomScreen({
       />
     </SidebarShell>
   ) : (
-    <SidebarShell title="Session Controls" subtitle="Workflow stages and distribution actions">
+    <SidebarShell title="Управление сессией" subtitle="Стадии работы и действия по распределению">
       <Stack spacing={2}>
         <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
           {stageOrder.map((item) => (
@@ -264,10 +264,10 @@ export function MeetingRoomScreen({
           ))}
         </Stack>
         <Button variant="outlined" onClick={() => void handleReassignAll()} disabled={!canControlStage}>
-          Redistribute Tasks
+          Перераспределить задачи
         </Button>
         <Button variant="contained" onClick={() => setTaskCreateKey((prev) => prev + 1)}>
-          Create Task
+          Создать задачу
         </Button>
         <Stack spacing={1}>
           {suggestions.map((suggestion) => (
@@ -277,7 +277,7 @@ export function MeetingRoomScreen({
               <Button size="small" variant="outlined" onClick={() => void handleSuggestionApply(suggestion)}>Apply</Button>
             </Paper>
           ))}
-          {!suggestions.length ? <Alert severity="info">AI suggestions will appear here as the session evolves.</Alert> : null}
+          {!suggestions.length ? <Alert severity="info">Подсказки по задачам появятся здесь по мере развития сессии.</Alert> : null}
         </Stack>
       </Stack>
     </SidebarShell>
@@ -296,7 +296,7 @@ export function MeetingRoomScreen({
                 <Typography variant="h5">{sessionRoom?.title || formatRoomName(roomName)}</Typography>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
                   <Typography variant="caption" sx={{ px: 1.5, py: 0.5, borderRadius: 999, bgcolor: stageTone.background, color: stageTone.color }}>
-                    {stage ? stageLabels[stage] : 'Stage pending'}
+                    {stage ? stageLabels[stage] : 'Стадия ожидается'}
                   </Typography>
                   <Typography variant="caption" sx={{ px: 1.5, py: 0.5, borderRadius: 999, bgcolor: '#ffffff', border: '1px solid #e5e7eb' }}>
                     {stageElapsed != null ? formatMMSS(stageElapsed) : '00:00'}
@@ -380,7 +380,7 @@ export function MeetingRoomScreen({
       </Stack>
 
       <Dialog open={Boolean(selectedTask)} onClose={() => setSelectedTask(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Task Details</DialogTitle>
+        <DialogTitle>Детали задачи</DialogTitle>
         <DialogContent>
           {selectedTask ? (
             <Stack spacing={1.5} sx={{ pt: 1 }}>
@@ -419,8 +419,8 @@ export function MeetingRoomScreen({
         }}
       >
         {widgetsState.lastStartedToast?.last_started_by?.name
-          ? `${widgetsState.lastStartedToast.last_started_by.name} started Pomodoro`
-          : 'Pomodoro started'}
+          ? `${widgetsState.lastStartedToast.last_started_by.name} запустил(а) Pomodoro`
+          : 'Pomodoro запущен'}
       </Alert>
     </Box>
   );

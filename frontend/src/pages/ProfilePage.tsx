@@ -35,6 +35,7 @@ import type { PaletteMode } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
+import { SkillsTagInput } from '../components/SkillsTagInput';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../context/ThemeModeContext';
@@ -47,10 +48,7 @@ function getInitials(fullName: string) {
 
 function createUsername(fullName: string, email: string) {
   const localPart = email.split('@')[0]?.trim();
-  if (localPart) {
-    return localPart.toLowerCase();
-  }
-
+  if (localPart) return localPart.toLowerCase();
   return fullName.trim().toLowerCase().replace(/\s+/g, '.');
 }
 
@@ -71,20 +69,8 @@ function MetricCard({ title, value, icon }: { title: string; value: number; icon
     <Paper sx={{ p: 2.25, borderRadius: '12px' }}>
       <Stack spacing={1.5}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="body2" color="text.secondary">
-            {title}
-          </Typography>
-          <Box
-            sx={{
-              width: 34,
-              height: 34,
-              borderRadius: '10px',
-              display: 'grid',
-              placeItems: 'center',
-              bgcolor: 'rgba(17, 24, 39, 0.05)',
-              color: 'text.secondary',
-            }}
-          >
+          <Typography variant="body2" color="text.secondary">{title}</Typography>
+          <Box sx={{ width: 34, height: 34, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: 'rgba(17, 24, 39, 0.05)', color: 'text.secondary' }}>
             {icon}
           </Box>
         </Stack>
@@ -99,54 +85,23 @@ function DetailField({ label, value, icon }: { label: string; value: string; ico
     <Stack spacing={0.75}>
       <Stack direction="row" spacing={1} alignItems="center">
         <Box sx={{ color: 'text.secondary', display: 'grid', placeItems: 'center' }}>{icon}</Box>
-        <Typography variant="body2" color="text.secondary">
-          {label}
-        </Typography>
+        <Typography variant="body2" color="text.secondary">{label}</Typography>
       </Stack>
       <Typography variant="subtitle2">{value}</Typography>
     </Stack>
   );
 }
 
-function SettingsRow({
-  icon,
-  title,
-  description,
-  action,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-  action: ReactNode;
-}) {
+function SettingsRow({ icon, title, description, action }: { icon: ReactNode; title: string; description: string; action: ReactNode }) {
   return (
-    <Stack
-      direction="row"
-      spacing={1.5}
-      alignItems="center"
-      justifyContent="space-between"
-      sx={{ py: 1.5 }}
-    >
+    <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" sx={{ py: 1.5 }}>
       <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: '10px',
-            display: 'grid',
-            placeItems: 'center',
-            bgcolor: 'rgba(17, 24, 39, 0.05)',
-            color: 'text.secondary',
-            flexShrink: 0,
-          }}
-        >
+        <Box sx={{ width: 36, height: 36, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: 'rgba(17, 24, 39, 0.05)', color: 'text.secondary', flexShrink: 0 }}>
           {icon}
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="subtitle2">{title}</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {description}
-          </Typography>
+          <Typography variant="body2" color="text.secondary">{description}</Typography>
         </Box>
       </Stack>
       <Box sx={{ flexShrink: 0 }}>{action}</Box>
@@ -155,28 +110,19 @@ function SettingsRow({
 }
 
 export function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const { mode, setMode } = useThemeMode();
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [error, setError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [savingSkills, setSavingSkills] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [weeklyDigestEnabled, setWeeklyDigestEnabled] = useState(false);
-  const [profileState, setProfileState] = useState({
-    fullName: '',
-    email: '',
-    username: '',
-    bio: '',
-    photoName: '',
-  });
-  const [editDraft, setEditDraft] = useState({
-    fullName: '',
-    email: '',
-    username: '',
-    bio: '',
-    photoName: '',
-  });
+  const [profileState, setProfileState] = useState({ fullName: '', email: '', username: '', bio: '', photoName: '' });
+  const [editDraft, setEditDraft] = useState({ fullName: '', email: '', username: '', bio: '', photoName: '' });
+  const [skillsDraft, setSkillsDraft] = useState<string[]>([]);
 
   useEffect(() => {
     api.get<UserProgress>('/users/me/progress')
@@ -198,9 +144,10 @@ export function ProfilePage() {
   const displayUsername = profileState.username || createUsername(displayName, displayEmail);
   const displayBio = profileState.bio || 'Добавьте пару слов о себе, чтобы профиль выглядел живым и понятным команде.';
   const initials = useMemo(() => getInitials(displayName), [displayName]);
+  const currentSkills = user?.skills ?? [];
 
   const accountHighlights = [
-    user?.skills?.length ? `${user.skills.length} навыков в профиле` : 'Навыки пока не заполнены',
+    currentSkills.length ? `${currentSkills.length} навыков в профиле` : 'Навыки пока не заполнены',
     `Лимит нагрузки: ${user?.workload_limit ?? 0}`,
     `Надёжность: ${Math.round(user?.reliability_score ?? 0)}%`,
   ];
@@ -210,10 +157,13 @@ export function ProfilePage() {
     setEditOpen(true);
   }
 
+  function openSkillsDialog() {
+    setSkillsDraft(currentSkills);
+    setSkillsOpen(true);
+  }
+
   function handleThemeChange(_: React.MouseEvent<HTMLElement>, nextMode: PaletteMode | null) {
-    if (nextMode) {
-      setMode(nextMode);
-    }
+    if (nextMode) setMode(nextMode);
   }
 
   return (
@@ -221,7 +171,7 @@ export function ProfilePage() {
       <Box sx={{ px: { xs: 0.5, md: 0 } }}>
         <Typography variant="h4">Профиль</Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mt: 0.75, maxWidth: 720 }}>
-          Управляйте личными данными, настройками аккаунта и учебной активностью в одном аккуратном пространстве.
+          Управляйте личными данными, навыками и настройками аккаунта в одном аккуратном пространстве.
         </Typography>
       </Box>
 
@@ -231,134 +181,58 @@ export function ProfilePage() {
         <>
           <Paper sx={{ p: { xs: 2.25, md: 3 }, borderRadius: '12px' }}>
             <Stack spacing={2.5}>
-              <Stack
-                direction={{ xs: 'column', md: 'row' }}
-                spacing={2}
-                alignItems={{ xs: 'flex-start', md: 'center' }}
-                justifyContent="space-between"
-              >
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
                 <Stack direction="row" spacing={2} alignItems="center">
-                  <Avatar
-                    sx={{
-                      width: 76,
-                      height: 76,
-                      bgcolor: '#111827',
-                      color: '#ffffff',
-                      fontSize: '1.5rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {initials}
-                  </Avatar>
+                  <Avatar sx={{ width: 76, height: 76, bgcolor: '#111827', color: '#ffffff', fontSize: '1.5rem', fontWeight: 700 }}>{initials}</Avatar>
                   <Stack spacing={0.75}>
                     <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
                       <Typography variant="h5">{displayName}</Typography>
                       <Chip label="Аккаунт активен" size="small" />
                     </Stack>
-                    <Typography variant="body1" color="text.secondary">
-                      {displayEmail}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {roleLabel(user?.role)}
-                    </Typography>
+                    <Typography variant="body1" color="text.secondary">{displayEmail}</Typography>
+                    <Typography variant="body2" color="text.secondary">{roleLabel(user?.role)}</Typography>
                   </Stack>
                 </Stack>
 
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ width: { xs: '100%', md: 'auto' } }}>
-                  <Button variant="contained" startIcon={<EditRoundedIcon />} onClick={openEditDialog}>
-                    Редактировать профиль
-                  </Button>
-                  <Button variant="outlined" startIcon={<LockRoundedIcon />} onClick={() => setSecurityOpen(true)}>
-                    Безопасность
-                  </Button>
+                  <Button variant="contained" startIcon={<EditRoundedIcon />} onClick={openEditDialog}>Редактировать профиль</Button>
+                  <Button variant="outlined" onClick={openSkillsDialog}>Изменить навыки</Button>
+                  <Button variant="outlined" startIcon={<LockRoundedIcon />} onClick={() => setSecurityOpen(true)}>Безопасность</Button>
                 </Stack>
               </Stack>
 
               <Divider />
 
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
-                {accountHighlights.map((item) => (
-                  <Chip key={item} label={item} sx={{ bgcolor: '#f9fafb' }} />
-                ))}
+                {accountHighlights.map((item) => <Chip key={item} label={item} sx={{ bgcolor: '#f9fafb' }} />)}
+              </Stack>
+
+              <Stack spacing={1.25}>
+                <Typography variant="subtitle2">Навыки</Typography>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {currentSkills.length ? currentSkills.map((skill) => <Chip key={skill} label={skill} />) : <Typography variant="body2" color="text.secondary">Навыки пока не заполнены.</Typography>}
+                </Stack>
               </Stack>
             </Stack>
           </Paper>
 
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 2,
-              gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.3fr) minmax(320px, 0.9fr)' },
-              alignItems: 'start',
-            }}
-          >
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.3fr) minmax(320px, 0.9fr)' }, alignItems: 'start' }}>
             <Paper sx={{ p: { xs: 2.25, md: 3 }, borderRadius: '12px' }}>
               <Stack spacing={3}>
                 <Stack spacing={0.75}>
                   <Typography variant="h6">Личные данные</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Основная информация профиля, которую увидят ваши коллеги и участники учебных сессий.
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Основная информация профиля, которую увидят ваши коллеги и участники учебных сессий.</Typography>
                 </Stack>
-
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gap: 2.5,
-                    gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
-                  }}
-                >
+                <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' } }}>
                   <DetailField label="Полное имя" value={displayName} icon={<PersonRoundedIcon fontSize="small" />} />
                   <DetailField label="Email" value={displayEmail} icon={<EmailRoundedIcon fontSize="small" />} />
                   <DetailField label="Username" value={`@${displayUsername}`} icon={<AlternateEmailRoundedIcon fontSize="small" />} />
                   <DetailField label="Роль" value={roleLabel(user?.role)} icon={<ShieldOutlinedIcon fontSize="small" />} />
                 </Box>
-
                 <Divider />
-
                 <Stack spacing={1.25}>
                   <Typography variant="subtitle2">О себе</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {displayBio}
-                  </Typography>
-                </Stack>
-
-                <Stack spacing={1.25}>
-                  <Typography variant="subtitle2">Фото профиля</Typography>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      borderRadius: '12px',
-                      borderStyle: 'dashed',
-                      bgcolor: '#f9fafb',
-                    }}
-                  >
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between">
-                      <Stack spacing={0.5}>
-                        <Typography variant="body2">
-                          {profileState.photoName ? `Выбран файл: ${profileState.photoName}` : 'Изображение профиля пока не добавлено'}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Пока это локальная настройка интерфейса без отправки на сервер.
-                        </Typography>
-                      </Stack>
-                      <Button component="label" variant="outlined" startIcon={<CameraAltOutlinedIcon />}>
-                        Выбрать файл
-                        <input
-                          hidden
-                          type="file"
-                          accept="image/*"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0];
-                            if (file) {
-                              setProfileState((prev) => ({ ...prev, photoName: file.name }));
-                            }
-                          }}
-                        />
-                      </Button>
-                    </Stack>
-                  </Paper>
+                  <Typography variant="body2" color="text.secondary">{displayBio}</Typography>
                 </Stack>
               </Stack>
             </Paper>
@@ -367,77 +241,25 @@ export function ProfilePage() {
               <Paper sx={{ p: { xs: 2.25, md: 3 }, borderRadius: '12px' }}>
                 <Stack spacing={0.5}>
                   <Typography variant="h6">Статистика</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Короткий срез активности без перегруженных виджетов.
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Короткий срез активности без перегруженных виджетов.</Typography>
                 </Stack>
-
-                <Box
-                  sx={{
-                    mt: 2,
-                    display: 'grid',
-                    gap: 1.5,
-                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))', xl: '1fr' },
-                  }}
-                >
+                <Box sx={{ mt: 2, display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))', xl: '1fr' } }}>
                   <MetricCard title="Сессии" value={progress.sessions_attended} icon={<VideoCameraFrontRoundedIcon fontSize="small" />} />
                   <MetricCard title="Создано задач" value={progress.tasks_created} icon={<InsightsRoundedIcon fontSize="small" />} />
                   <MetricCard title="Завершено задач" value={progress.tasks_completed} icon={<TaskAltRoundedIcon fontSize="small" />} />
                 </Box>
               </Paper>
-
               <Paper sx={{ p: { xs: 2.25, md: 3 }, borderRadius: '12px' }}>
                 <Stack spacing={0.5}>
                   <Typography variant="h6">Настройки аккаунта</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Повседневные предпочтения и действия по управлению аккаунтом.
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Повседневные предпочтения и действия по управлению аккаунтом.</Typography>
                 </Stack>
-
                 <Stack divider={<Divider />} sx={{ mt: 1.5 }}>
-                  <SettingsRow
-                    icon={<EmailRoundedIcon fontSize="small" />}
-                    title="Уведомления о сессиях"
-                    description="Напоминания о встречах и обновлениях по задачам."
-                    action={<Switch checked={notificationsEnabled} onChange={(event) => setNotificationsEnabled(event.target.checked)} />}
-                  />
-                  <SettingsRow
-                    icon={<InsightsRoundedIcon fontSize="small" />}
-                    title="Еженедельная сводка"
-                    description="Короткое письмо с прогрессом по задачам и посещаемости."
-                    action={<Switch checked={weeklyDigestEnabled} onChange={(event) => setWeeklyDigestEnabled(event.target.checked)} />}
-                  />
-                  <SettingsRow
-                    icon={mode === 'dark' ? <DarkModeRoundedIcon fontSize="small" /> : <LightModeRoundedIcon fontSize="small" />}
-                    title="Цветовой режим"
-                    description="Переключайте сайт между светлой и тёмной темой."
-                    action={(
-                      <ToggleButtonGroup exclusive value={mode} size="small" onChange={handleThemeChange}>
-                        <ToggleButton value="light">Светлый</ToggleButton>
-                        <ToggleButton value="dark">Тёмный</ToggleButton>
-                      </ToggleButtonGroup>
-                    )}
-                  />
-                  <SettingsRow
-                    icon={<ShieldOutlinedIcon fontSize="small" />}
-                    title="Конфиденциальность и вход"
-                    description="Проверьте безопасность входа и параметры видимости аккаунта."
-                    action={(
-                      <Button color="inherit" onClick={() => setSecurityOpen(true)} endIcon={<ChevronRightRoundedIcon />}>
-                        Открыть
-                      </Button>
-                    )}
-                  />
-                  <SettingsRow
-                    icon={<LogoutRoundedIcon fontSize="small" />}
-                    title="Выход из аккаунта"
-                    description="Завершить текущую сессию на этом устройстве."
-                    action={(
-                      <Button color="inherit" variant="outlined" onClick={logout}>
-                        Выйти
-                      </Button>
-                    )}
-                  />
+                  <SettingsRow icon={<EmailRoundedIcon fontSize="small" />} title="Уведомления о сессиях" description="Напоминания о встречах и обновлениях по задачам." action={<Switch checked={notificationsEnabled} onChange={(event) => setNotificationsEnabled(event.target.checked)} />} />
+                  <SettingsRow icon={<InsightsRoundedIcon fontSize="small" />} title="Еженедельная сводка" description="Короткое письмо с прогрессом по задачам и посещаемости." action={<Switch checked={weeklyDigestEnabled} onChange={(event) => setWeeklyDigestEnabled(event.target.checked)} />} />
+                  <SettingsRow icon={mode === 'dark' ? <DarkModeRoundedIcon fontSize="small" /> : <LightModeRoundedIcon fontSize="small" />} title="Цветовой режим" description="Переключайте сайт между светлой и тёмной темой." action={<ToggleButtonGroup exclusive value={mode} size="small" onChange={handleThemeChange}><ToggleButton value="light">Светлый</ToggleButton><ToggleButton value="dark">Тёмный</ToggleButton></ToggleButtonGroup>} />
+                  <SettingsRow icon={<ShieldOutlinedIcon fontSize="small" />} title="Конфиденциальность и вход" description="Проверьте безопасность входа и параметры видимости аккаунта." action={<Button color="inherit" onClick={() => setSecurityOpen(true)} endIcon={<ChevronRightRoundedIcon />}>Открыть</Button>} />
+                  <SettingsRow icon={<LogoutRoundedIcon fontSize="small" />} title="Выход из аккаунта" description="Завершить текущую сессию на этом устройстве." action={<Button color="inherit" variant="outlined" onClick={logout}>Выйти</Button>} />
                 </Stack>
               </Paper>
             </Stack>
@@ -449,66 +271,48 @@ export function ProfilePage() {
         <DialogTitle>Редактирование профиля</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Полное имя"
-              fullWidth
-              value={editDraft.fullName}
-              onChange={(event) => setEditDraft((prev) => ({ ...prev, fullName: event.target.value }))}
-            />
-            <TextField
-              label="Email"
-              fullWidth
-              value={editDraft.email}
-              onChange={(event) => setEditDraft((prev) => ({ ...prev, email: event.target.value }))}
-            />
-            <TextField
-              label="Username"
-              fullWidth
-              value={editDraft.username}
-              onChange={(event) => setEditDraft((prev) => ({ ...prev, username: event.target.value.replace(/^@/, '') }))}
-            />
-            <TextField
-              label="О себе"
-              fullWidth
-              multiline
-              minRows={4}
-              value={editDraft.bio}
-              onChange={(event) => setEditDraft((prev) => ({ ...prev, bio: event.target.value }))}
-            />
+            <TextField label="Полное имя" fullWidth value={editDraft.fullName} onChange={(event) => setEditDraft((prev) => ({ ...prev, fullName: event.target.value }))} />
+            <TextField label="Email" fullWidth value={editDraft.email} onChange={(event) => setEditDraft((prev) => ({ ...prev, email: event.target.value }))} />
+            <TextField label="Username" fullWidth value={editDraft.username} onChange={(event) => setEditDraft((prev) => ({ ...prev, username: event.target.value.replace(/^@/, '') }))} />
+            <TextField label="О себе" fullWidth multiline minRows={4} value={editDraft.bio} onChange={(event) => setEditDraft((prev) => ({ ...prev, bio: event.target.value }))} />
             <Button component="label" variant="outlined" startIcon={<CameraAltOutlinedIcon />} sx={{ alignSelf: 'flex-start' }}>
               {editDraft.photoName ? 'Заменить фото' : 'Загрузить фото'}
-              <input
-                hidden
-                type="file"
-                accept="image/*"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    setEditDraft((prev) => ({ ...prev, photoName: file.name }));
-                  }
-                }}
-              />
+              <input hidden type="file" accept="image/*" onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) setEditDraft((prev) => ({ ...prev, photoName: file.name }));
+              }} />
             </Button>
-            <Typography variant="caption" color="text.secondary">
-              Изменения пока применяются только в интерфейсе страницы.
-            </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button
-            color="inherit"
-            onClick={() => {
-              setEditDraft(profileState);
-              setEditOpen(false);
-            }}
-          >
-            Отмена
-          </Button>
+          <Button color="inherit" onClick={() => setEditOpen(false)}>Отмена</Button>
+          <Button variant="contained" onClick={() => { setProfileState(editDraft); setEditOpen(false); }}>Сохранить</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={skillsOpen} onClose={() => !savingSkills && setSkillsOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Изменить навыки</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <SkillsTagInput
+              value={skillsDraft}
+              onChange={setSkillsDraft}
+              helperText="Добавляйте навыки тегами. Они будут использоваться при распределении задач."
+              disabled={savingSkills}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSkillsOpen(false)} disabled={savingSkills}>Отмена</Button>
           <Button
             variant="contained"
+            disabled={savingSkills}
             onClick={() => {
-              setProfileState(editDraft);
-              setEditOpen(false);
+              setSavingSkills(true);
+              updateProfile({ skills: skillsDraft })
+                .then(() => setSkillsOpen(false))
+                .catch((err: Error) => setError(err.message || 'Не удалось сохранить навыки.'))
+                .finally(() => setSavingSkills(false));
             }}
           >
             Сохранить
@@ -520,9 +324,7 @@ export function ProfilePage() {
         <DialogTitle>Безопасность аккаунта</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Здесь подготовлен интерфейс для смены пароля и управления входом. Серверную логику я не менял.
-            </Typography>
+            <Typography variant="body2" color="text.secondary">Здесь подготовлен интерфейс для смены пароля и управления входом. Серверную логику я не менял.</Typography>
             <TextField label="Текущий пароль" type="password" fullWidth disabled placeholder="Станет доступно после подключения API" />
             <TextField label="Новый пароль" type="password" fullWidth disabled placeholder="Станет доступно после подключения API" />
           </Stack>

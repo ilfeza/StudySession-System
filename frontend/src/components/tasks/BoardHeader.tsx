@@ -1,7 +1,5 @@
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { Button, InputAdornment, MenuItem, Stack, TextField } from '@mui/material';
-import type { MouseEvent } from 'react';
 
 import type { SessionParticipant } from '../../types';
 
@@ -12,7 +10,6 @@ export function BoardHeader({
   onQueryChange,
   onAssigneeFilterChange,
   onCreateTask,
-  onOpenAiActions,
 }: {
   query: string;
   assigneeFilter: 'all' | 'unassigned' | `${number}`;
@@ -20,7 +17,6 @@ export function BoardHeader({
   onQueryChange: (value: string) => void;
   onAssigneeFilterChange: (value: 'all' | 'unassigned' | `${number}`) => void;
   onCreateTask: () => void;
-  onOpenAiActions: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <Stack spacing={1.5}>
@@ -28,9 +24,6 @@ export function BoardHeader({
         <Stack direction="row" spacing={1} justifyContent={{ xs: 'stretch', md: 'flex-end' }}>
           <Button variant="contained" onClick={onCreateTask}>
             Новая задача
-          </Button>
-          <Button variant="outlined" startIcon={<AutoAwesomeRoundedIcon />} onClick={onOpenAiActions}>
-            AI-действия
           </Button>
         </Stack>
       </Stack>

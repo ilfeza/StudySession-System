@@ -28,18 +28,14 @@ interface EditableAiTask extends AiTaskSuggestion {
 
 function resolveAssigneeId(participants: SessionParticipant[], assignee?: string | null) {
   const normalizedAssignee = assignee?.trim().toLowerCase();
-  if (!normalizedAssignee) {
-    return null;
-  }
-
+  if (!normalizedAssignee) return null;
   const exact = participants.find((participant) => participant.full_name.trim().toLowerCase() === normalizedAssignee);
-  if (exact) {
-    return exact.id;
-  }
-
+  if (exact) return exact.id;
   const partial = participants.find((participant) => participant.full_name.trim().toLowerCase().includes(normalizedAssignee));
   return partial?.id ?? null;
 }
+
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 export function TaskPanel({
   sessionId,
@@ -84,6 +80,8 @@ export function TaskPanel({
   const [reassignAssigneeId, setReassignAssigneeId] = useState('');
   const [engineSuggestions, setEngineSuggestions] = useState<SessionSuggestion[]>([]);
   const [lastHandledCreateKey, setLastHandledCreateKey] = useState(0);
+  const [redistributionFeed, setRedistributionFeed] = useState<string[]>([]);
+  const [redistributing, setRedistributing] = useState(false);
 
   useEffect(() => {
     if (openCreateKey > 0 && openCreateKey !== lastHandledCreateKey) {
@@ -97,16 +95,10 @@ export function TaskPanel({
   }, [engineSuggestions, onEngineSuggestionsChange]);
 
   useEffect(() => {
-    if (!isModerator) {
-      return;
-    }
-
+    if (!isModerator) return;
     const liveSet = new Set(liveParticipantNames.map((name) => name.trim().toLowerCase()));
     const staleTasks = tasks.filter((task) => task.assignee?.full_name && !liveSet.has(task.assignee.full_name.trim().toLowerCase()) && task.status !== 'done');
-    if (!staleTasks.length) {
-      return;
-    }
-
+    if (!staleTasks.length) return;
     const suggestions = staleTasks.map((task) => ({
       id: `offline-${task.id}`,
       source: 'engine' as const,
@@ -120,19 +112,16 @@ export function TaskPanel({
 
   const filteredTasks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-
     return tasks.filter((task) => {
       const matchesQuery = !normalizedQuery
         || task.title.toLowerCase().includes(normalizedQuery)
         || task.description.toLowerCase().includes(normalizedQuery)
         || task.assignee?.full_name?.toLowerCase().includes(normalizedQuery);
-
       const matchesAssignee = assigneeFilter === 'all'
         ? true
         : assigneeFilter === 'unassigned'
           ? task.assignee_id == null
           : String(task.assignee_id ?? '') === assigneeFilter;
-
       return matchesQuery && matchesAssignee;
     });
   }, [assigneeFilter, query, tasks]);
@@ -149,22 +138,13 @@ export function TaskPanel({
   );
 
   async function handleDrop(nextStatus: SessionTaskStatus) {
-    if (draggedTaskId == null) {
-      return;
-    }
-
+    if (draggedTaskId == null) return;
     const draggedTask = tasks.find((task) => task.id === draggedTaskId);
     setDropStatus(null);
     setDraggedTaskId(null);
-
-    if (!draggedTask || draggedTask.status === nextStatus) {
-      return;
-    }
-
+    if (!draggedTask || draggedTask.status === nextStatus) return;
     const payload: { status: SessionTaskStatus; assignee_id?: number | null } = { status: nextStatus };
-    if (nextStatus === 'backlog') {
-      payload.assignee_id = null;
-    }
+    if (nextStatus === 'backlog') payload.assignee_id = null;
     await patchTask(draggedTask.id, payload);
   }
 
@@ -195,12 +175,10 @@ export function TaskPanel({
         assignee: task.assignee?.trim() ?? '',
       }))
       .filter((task) => task.title);
-
     if (!normalizedTasks.length) {
       setAiError('Добавьте хотя бы одну задачу.');
       return;
     }
-
     setAiSaving(true);
     setAiError('');
     try {
@@ -217,7 +195,7 @@ export function TaskPanel({
       }
       setAiOpen(false);
       setAiTasks([]);
-      onNotify?.({ id: `ai-saved-${Date.now()}`, message: 'AI-задачи добавлены на доску', severity: 'success' });
+      onNotify?.({ id: `ai-saved-${Date.now()}`, message: 'Сгенерированные задачи добавлены на доску', severity: 'success' });
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Не удалось сохранить задачи.');
     } finally {
@@ -225,31 +203,42 @@ export function TaskPanel({
     }
   }
 
+  async function handleRedistributeAll() {
+    const candidates = tasks.filter((task) => task.status === 'backlog' || task.status === 'blocked');
+    if (!candidates.length) return;
+    setRedistributing(true);
+    setRedistributionFeed([]);
+    try {
+      for (const task of candidates) {
+        const participant = chooseBestParticipant(tasks, participants, task.required_skills);
+        if (!participant) continue;
+        setRedistributionFeed((prev) => [`${task.title} → ${participant.full_name}`, ...prev].slice(0, 5));
+        await patchTask(task.id, { assignee_id: participant.id, status: 'assigned' });
+        await sleep(180);
+      }
+      onNotify?.({ id: `reassign-all-${Date.now()}`, message: 'Доступные задачи перераспределены', severity: 'success' });
+    } finally {
+      setRedistributing(false);
+    }
+  }
+
   async function handleAutoAssignTask(taskId: number) {
     const task = tasks.find((item) => item.id === taskId);
-    if (!task) {
-      return;
-    }
+    if (!task) return;
     const nextParticipant = chooseBestParticipant(tasks, participants, task.required_skills);
     if (!nextParticipant) {
       onNotify?.({ id: `no-participant-${task.id}`, message: 'Нет доступных участников для назначения', severity: 'warning' });
       return;
     }
-
     await patchTask(task.id, { assignee_id: nextParticipant.id, status: 'assigned' });
     onNotify?.({ id: `reassigned-${task.id}`, message: `Задача назначена: ${nextParticipant.full_name}`, severity: 'success' });
     setEngineSuggestions((prev) => prev.filter((item) => item.taskId !== task.id));
   }
 
   async function handleReassignConfirm() {
-    if (!reassigningTask) {
-      return;
-    }
+    if (!reassigningTask) return;
     const nextAssigneeId = reassignAssigneeId ? Number(reassignAssigneeId) : null;
-    await patchTask(reassigningTask.id, {
-      assignee_id: nextAssigneeId,
-      status: nextAssigneeId ? 'assigned' : 'backlog',
-    });
+    await patchTask(reassigningTask.id, { assignee_id: nextAssigneeId, status: nextAssigneeId ? 'assigned' : 'backlog' });
     const nextAssignee = participants.find((participant) => participant.id === nextAssigneeId);
     onNotify?.({
       id: `manual-reassign-${reassigningTask.id}`,
@@ -270,25 +259,9 @@ export function TaskPanel({
     setDetailsTask(null);
   }
 
-  function openAiMenu(event: MouseEvent<HTMLButtonElement>) {
-    setAiMenuAnchor(event.currentTarget);
-  }
-
   return (
     <>
-      <Paper
-        sx={{
-          p: { xs: 2, md: fullscreen ? 2.5 : 2 },
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-          borderRadius: 0,
-          border: 'none',
-          backgroundColor: 'transparent',
-          boxShadow: 'none',
-        }}
-      >
+      <Paper sx={{ p: { xs: 2, md: fullscreen ? 2.5 : 2 }, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2, borderRadius: 0, border: 'none', backgroundColor: 'transparent', boxShadow: 'none' }}>
         <BoardHeader
           query={query}
           assigneeFilter={assigneeFilter}
@@ -296,10 +269,22 @@ export function TaskPanel({
           onQueryChange={setQuery}
           onAssigneeFilterChange={setAssigneeFilter}
           onCreateTask={() => setCreateOpen(true)}
-          onOpenAiActions={openAiMenu}
         />
 
         {error ? <Alert severity="warning">{error}</Alert> : null}
+        {redistributing ? <Alert severity="info">Идет перераспределение задач: назначения обновляются по одной, чтобы было видно движение.</Alert> : null}
+        {redistributionFeed.length ? (
+          <Paper sx={{ p: 1.5, borderRadius: 2, border: '1px solid #dbe2ea', bgcolor: '#f8fafc' }}>
+            <Stack spacing={0.75}>
+              <Typography variant="subtitle2">Поток распределения</Typography>
+              {redistributionFeed.map((item) => (
+                <Typography key={item} variant="body2" color="text.secondary">
+                  {item}
+                </Typography>
+              ))}
+            </Stack>
+          </Paper>
+        ) : null}
 
         {!loading && tasks.length === 0 ? (
           <Paper sx={{ p: 5, borderRadius: 2.5, border: '1px dashed #dbe2ea', textAlign: 'center', bgcolor: '#fcfcfd', boxShadow: 'none' }}>
@@ -363,14 +348,10 @@ export function TaskPanel({
         <MenuItem
           onClick={() => {
             setAiMenuAnchor(null);
-            engineSuggestions.forEach((item) => {
-              if (item.taskId != null) {
-                void handleAutoAssignTask(item.taskId);
-              }
-            });
+            void handleRedistributeAll();
           }}
         >
-          Применить AI-подсказки
+          Перераспределить задачи
         </MenuItem>
       </Menu>
 

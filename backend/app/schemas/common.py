@@ -48,6 +48,13 @@ class UserRead(BaseModel):
     is_active: bool = True
 
 
+class UserProfileUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=3, max_length=255)
+    email: EmailStr | None = None
+    bio: str | None = Field(default=None, max_length=1000)
+    skills: list[str] | None = None
+
+
 class UserDirectoryRead(BaseModel):
     id: int
     email: str = ''

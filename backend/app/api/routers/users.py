@@ -5,10 +5,16 @@ from fastapi import APIRouter, Depends
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import Task
-from app.schemas import UserProgressRead, UserSessionHistoryItem
+from app.schemas import UserProfileUpdate, UserProgressRead, UserSessionHistoryItem, UserRead
 from app.services.user_profile_service import UserProfileService
 
 router = APIRouter()
+
+
+def _normalize_skills(skills: list[str] | None) -> str | None:
+    if skills is None:
+        return None
+    return ','.join(sorted({skill.strip().lower() for skill in skills if skill.strip()}))
 
 
 @router.get('/me/progress', response_model=UserProgressRead)
@@ -43,3 +49,26 @@ def my_history(db: Session = Depends(get_db), user=Depends(get_current_user)):
         )
         for session in sessions
     ]
+
+
+@router.patch('/me', response_model=UserRead)
+def update_me(payload: UserProfileUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    if payload.full_name is not None:
+        user.full_name = payload.full_name
+    if payload.email is not None:
+        user.email = payload.email
+    if payload.skills is not None:
+        normalized = _normalize_skills(payload.skills)
+        user.skills = normalized or ''
+    db.commit()
+    db.refresh(user)
+    return UserRead(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        skills=[skill for skill in user.skills.split(',') if skill],
+        reliability_score=user.reliability_score,
+        workload_limit=user.workload_limit,
+        is_active=user.is_active,
+    )
