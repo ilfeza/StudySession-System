@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { SessionParticipant, SessionTask, SessionTaskStatus } from '../types';
+import type { SessionDashboardSnapshot, SessionParticipant, SessionTask, SessionTaskStatus } from '../types';
 
 export interface CreateSessionTaskInput {
   room_id: number;
@@ -43,5 +43,17 @@ export async function deleteSessionTask(taskId: number) {
 
 export async function listSessionParticipants(sessionId: number) {
   const response = await api.get<SessionParticipant[]>(`/sessions/${sessionId}/participants`);
+  return response.data;
+}
+
+export async function getSessionDashboard(sessionId: number) {
+  const response = await api.get<SessionDashboardSnapshot>(`/sessions/${sessionId}/dashboard`);
+  return response.data;
+}
+
+export async function assignNextSessionTask(sessionId: number, preferredUserId?: number | null) {
+  const response = await api.post<SessionTask | null>('/tasks/next', null, {
+    params: { roomId: sessionId, ...(preferredUserId ? { preferredUserId } : {}) },
+  });
   return response.data;
 }

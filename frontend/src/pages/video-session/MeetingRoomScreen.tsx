@@ -1,104 +1,69 @@
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
-import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
-import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
+import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import ViewKanbanRoundedIcon from '@mui/icons-material/ViewKanbanRounded';
+import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
+import TimelapseRoundedIcon from '@mui/icons-material/TimelapseRounded';
 import { useParticipants } from '@livekit/components-react';
-import { Alert, Badge, Box, Button, Dialog, DialogContent, DialogTitle, Drawer, IconButton, Menu, MenuItem, Paper, Stack, TextField, Typography, useMediaQuery } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Divider,
+  Drawer,
+  Paper,
+  Stack,
+  Tab,
+  Tabs,
+  TextField,
+  Typography,
+  useMediaQuery,
+} from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { AudioCaptureOptions, VideoCaptureOptions } from 'livekit-client';
 
 import { api } from '../../api/client';
 import { ChatPanel } from '../../components/ChatPanel';
+import { assignNextSessionTask } from '../../api/sessionTasks';
 import { useSessionTasks } from '../../components/tasks/useSessionTasks';
 import { formatMMSS } from '../../components/widgets/pomodoroTime';
 import { useWidgetsSocket } from '../../components/widgets/useWidgetsSocket';
-import type { ChatMessage, SessionTask, VideoSessionRoom } from '../../types';
+import type { ChatMessage, SessionDashboardSnapshot, SessionTask, VideoSessionRoom } from '../../types';
 import type { SessionStage } from '../../types/pomodoro';
-import { chooseBestParticipant, type SessionNotification, type SessionSuggestion } from './sessionIntelligence';
-import type { JoinPreferences } from './types';
-import { formatRoomName } from './utils';
 import { KanbanBoard } from './components/KanbanBoard';
-import { TopTabs, type SessionView } from './components/TopTabs';
 import { VideoControls } from './components/VideoControls';
 import { VideoGrid } from './components/VideoGrid';
+import { formatRoomName } from './utils';
+import type { JoinPreferences } from './types';
 
-const stageLabels: Record<SessionStage, string> = {
-  task_creation: 'Task Creation',
-  task_distribution: 'Task Distribution',
-  execution: 'Execution',
-  review: 'Review',
-};
+type SessionTab = 'video' | 'kanban' | 'stages';
 
-const stageOrder: SessionStage[] = ['task_creation', 'task_distribution', 'execution', 'review'];
+const stageSteps = [
+  { key: 'task_creation', label: 'Подготовка' },
+  { key: 'task_distribution', label: 'Обсуждение' },
+  { key: 'execution', label: 'Выполнение' },
+  { key: 'review', label: 'Проверка' },
+  { key: 'completion', label: 'Завершение' },
+] as const;
 
-function getStageTone(stage: SessionStage | null) {
-  if (stage === 'task_creation') {
-    return { background: '#eff6ff', color: '#1d4ed8' };
-  }
-  if (stage === 'task_distribution') {
-    return { background: '#fff7ed', color: '#c2410c' };
-  }
-  if (stage === 'execution') {
-    return { background: '#ecfdf5', color: '#047857' };
-  }
-  if (stage === 'review') {
-    return { background: '#f5f3ff', color: '#6d28d9' };
-  }
-  return { background: '#f8fafc', color: '#475569' };
+function resolveStageIndex(stage: SessionStage | null, dashboard: SessionDashboardSnapshot | null) {
+  if (!stage) return 0;
+  const idx = stageSteps.findIndex((item) => item.key === stage);
+  if (idx >= 0) return idx;
+  return dashboard?.metrics.completion_rate === 100 ? stageSteps.length - 1 : 0;
 }
 
-function statusLabel(status: SessionTask['status']) {
-  if (status === 'assigned') {
-    return 'Назначено';
-  }
-  if (status === 'in_progress') {
-    return 'В работе';
-  }
-  if (status === 'blocked') {
-    return 'Заблокировано';
-  }
-  if (status === 'done') {
-    return 'Готово';
-  }
-  return 'Бэклог';
+function stageChipColor(stage: SessionStage | null) {
+  if (stage === 'task_distribution') return { bg: alpha('#f59e0b', 0.12), fg: '#b45309' };
+  if (stage === 'execution') return { bg: alpha('#16a34a', 0.12), fg: '#15803d' };
+  if (stage === 'review') return { bg: alpha('#7c3aed', 0.12), fg: '#6d28d9' };
+  return { bg: alpha('#2563eb', 0.12), fg: '#1d4ed8' };
 }
 
-function SidebarShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
-  return (
-    <Paper sx={{ width: '100%', height: '100%', p: 2, borderRadius: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box>
-        <Typography variant="h6">{title}</Typography>
-        <Typography variant="body2" color="text.secondary">{subtitle}</Typography>
-      </Box>
-      <Box sx={{ flex: 1, minHeight: 0 }}>{children}</Box>
-    </Paper>
-  );
-}
-
-function DeviceSettingsDialog({
-  open,
-  preferences,
-  onClose,
-  onPreferencesChange,
-}: {
-  open: boolean;
-  preferences: JoinPreferences;
-  onClose: () => void;
-  onPreferencesChange: (patch: Partial<JoinPreferences>) => void;
-}) {
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Настройки устройств</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField label="ID микрофона" value={preferences.audioDeviceId} onChange={(event) => onPreferencesChange({ audioDeviceId: event.target.value })} />
-          <TextField label="ID камеры" value={preferences.videoDeviceId} onChange={(event) => onPreferencesChange({ videoDeviceId: event.target.value })} />
-          <Alert severity="info">Если ID устройств пустые, будет использовано устройство по умолчанию в браузере.</Alert>
-        </Stack>
-      </DialogContent>
-    </Dialog>
-  );
+function formatTimeLabel(timestamp: string) {
+  return new Date(timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
 export function MeetingRoomScreen({
@@ -131,25 +96,23 @@ export function MeetingRoomScreen({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
   const participants = useParticipants();
-  const taskController = useSessionTasks(sessionId);
-  const { state: widgetsState, send: sendWidgetEvent, clearToast } = useWidgetsSocket(sessionId);
-  const [activeView, setActiveView] = useState<SessionView>('video');
+  const controller = useSessionTasks(sessionId);
+  const { state: widgetsState } = useWidgetsSocket(sessionId);
   const [sessionRoom, setSessionRoom] = useState<VideoSessionRoom | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [notifications, setNotifications] = useState<SessionNotification[]>([]);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [notificationsAnchor, setNotificationsAnchor] = useState<HTMLElement | null>(null);
-  const [sidebar, setSidebar] = useState<'chat' | 'controls' | null>(null);
-  const [suggestions, setSuggestions] = useState<SessionSuggestion[]>([]);
-  const [taskCreateKey, setTaskCreateKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<SessionTab>('video');
+  const [selectedParticipantId, setSelectedParticipantId] = useState<number | null>(null);
   const [selectedTask, setSelectedTask] = useState<SessionTask | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [serverOffsetMs, setServerOffsetMs] = useState<number | null>(null);
-  const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
+  const [notification, setNotification] = useState('');
 
   useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 500);
-    return () => window.clearInterval(id);
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -165,262 +128,447 @@ export function MeetingRoomScreen({
   }, [widgetsState.stage?.timing.server_time_ms]);
 
   const stage = widgetsState.stage?.current_stage ?? null;
-  const stageTone = getStageTone(stage);
+  const stageIndex = resolveStageIndex(stage, controller.dashboard);
   const stageElapsed = useMemo(() => {
     const snapshot = widgetsState.stage;
-    if (!snapshot) {
-      return null;
-    }
+    if (!snapshot) return 0;
     const offset = serverOffsetMs ?? 0;
     const serverNow = nowMs - offset;
     return Math.max(0, Math.floor((serverNow - snapshot.timing.stage_started_at_ms) / 1000));
   }, [nowMs, serverOffsetMs, widgetsState.stage]);
 
+  const dashboard = controller.dashboard;
+  const participantsView = dashboard?.participants ?? [];
+  const history = dashboard?.history ?? [];
+  const lastAssignment = dashboard?.last_assignment ?? null;
   const liveParticipantNames = useMemo(
     () => participants.map((participant) => participant.name?.trim().toLowerCase()).filter(Boolean) as string[],
     [participants],
   );
+  const stageColor = stageChipColor(stage);
+
+  const activeTasks = controller.tasks.filter((task) => task.status !== 'done');
+  const currentTask =
+    selectedTask ??
+    (selectedParticipantId
+      ? activeTasks.find((task) => task.assignee_id === selectedParticipantId) ?? null
+      : activeTasks[0] ?? null);
 
   const participantTasks = useMemo(() => {
-    return taskController.tasks.reduce<Record<number, SessionTask>>((acc, task) => {
+    return controller.tasks.reduce<Record<number, SessionTask>>((acc, task) => {
       if (!task.assignee_id || task.status === 'done') {
         return acc;
       }
       acc[task.assignee_id] = task;
       return acc;
     }, {});
-  }, [taskController.tasks]);
+  }, [controller.tasks]);
 
-  function pushNotification(notification: SessionNotification) {
-    setNotifications((prev) => [...prev.filter((item) => item.id !== notification.id), notification].slice(-10));
-    if (!notificationsAnchor) {
-      setUnreadNotifications((prev) => prev + 1);
+  const stageColumns = useMemo(() => {
+    const columns = stageSteps.map((stageStep) => ({ ...stageStep, tasks: [] as SessionTask[] }));
+    for (const task of controller.tasks) {
+      if (task.status !== 'done') continue;
+      const idx = columns.findIndex((column) => column.key === task.workflow_stage);
+      const targetIndex = idx >= 0 ? idx : columns.length - 1;
+      columns[targetIndex].tasks.push(task);
     }
-  }
+    return columns;
+  }, [controller.tasks]);
 
-  async function handleSuggestionApply(suggestion: SessionSuggestion) {
-    const task = taskController.tasks.find((item) => item.id === suggestion.taskId);
-    if (!task || suggestion.taskId == null) {
+  async function handleNextTask(preferredUserId?: number) {
+    const updated = await assignNextSessionTask(sessionId, preferredUserId);
+    if (!updated) {
+      setNotification('Нет доступных задач для назначения');
       return;
     }
-
-    if (suggestion.action === 'mark_done') {
-      await taskController.patchTask(suggestion.taskId, { status: 'done' });
-    } else if (suggestion.action === 'assign_sender' && suggestion.senderId != null) {
-      await taskController.patchTask(suggestion.taskId, { assignee_id: suggestion.senderId, status: 'assigned' });
-    } else if (suggestion.action === 'mark_blocked') {
-      await taskController.patchTask(suggestion.taskId, { status: 'blocked' });
-    } else {
-      const participant = chooseBestParticipant(taskController.tasks, taskController.participants, task.required_skills);
-      if (participant) {
-        await taskController.patchTask(suggestion.taskId, { assignee_id: participant.id, status: 'assigned' });
-      }
-    }
-
-    pushNotification({ id: `suggestion-${suggestion.id}`, message: `Обновлена задача: ${task.title}`, severity: 'success' });
-    setSuggestions((prev) => prev.filter((item) => item.id !== suggestion.id));
+    setNotification(`Задача #${updated.id} назначена ${updated.assignee?.full_name ?? 'участнику'}`);
   }
 
-  async function handleReassignAll() {
-    const candidates = taskController.tasks.filter((task) => task.status === 'backlog' || task.status === 'blocked');
-    for (const task of candidates) {
-      const participant = chooseBestParticipant(taskController.tasks, taskController.participants, task.required_skills);
-      if (participant) {
-        await taskController.patchTask(task.id, { assignee_id: participant.id, status: 'assigned' });
-      }
-    }
-    pushNotification({ id: `reassign-all-${Date.now()}`, message: 'Доступные задачи перераспределены', severity: 'success' });
+  async function handleCompleteTask(task: SessionTask | null) {
+    if (!task) return;
+    await controller.patchTask(task.id, { status: 'done' });
+    setSelectedTask(null);
+    setNotification(`Задача #${task.id} завершена`);
   }
 
-  function openTaskDetails(userId: number) {
-    const task = participantTasks[userId];
-    if (task) {
-      setSelectedTask(task);
-    }
-  }
-
-  const sidebarContent = sidebar === 'chat' ? (
-    <SidebarShell title="Чат сессии" subtitle="Общий чат команды">
-      <ChatPanel
-        sessionId={sessionId}
-        variant="session"
-        showHeader={false}
-        tasks={taskController.tasks}
-        isModerator={canControlStage}
-        messages={chatMessages}
-        onMessagesChange={setChatMessages}
-        onSuggestionCreate={(suggestion) => setSuggestions((prev) => (prev.some((item) => item.id === suggestion.id) ? prev : [...prev, suggestion].slice(-10)))}
-        onSuggestionApply={(suggestion) => void handleSuggestionApply(suggestion)}
-      />
-    </SidebarShell>
-  ) : (
-    <SidebarShell title="Управление сессией" subtitle="Стадии работы и действия по распределению">
-      <Stack spacing={2}>
-        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-          {stageOrder.map((item) => (
-            <Button key={item} variant={stage === item ? 'contained' : 'outlined'} onClick={() => sendWidgetEvent({ event: 'stage_set', payload: { stage: item } })} disabled={!canControlStage}>
-              {stageLabels[item]}
-            </Button>
-          ))}
-        </Stack>
-        <Button variant="outlined" onClick={() => void handleReassignAll()} disabled={!canControlStage}>
-          Перераспределить задачи
-        </Button>
-        <Button variant="contained" onClick={() => setTaskCreateKey((prev) => prev + 1)}>
-          Создать задачу
-        </Button>
-        <Stack spacing={1}>
-          {suggestions.map((suggestion) => (
-            <Paper key={suggestion.id} sx={{ p: 1.5, borderRadius: 2 }}>
-              <Typography variant="subtitle2">{suggestion.title}</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{suggestion.description}</Typography>
-              <Button size="small" variant="outlined" onClick={() => void handleSuggestionApply(suggestion)}>Apply</Button>
-            </Paper>
-          ))}
-          {!suggestions.length ? <Alert severity="info">Подсказки по задачам появятся здесь по мере развития сессии.</Alert> : null}
-        </Stack>
-      </Stack>
-    </SidebarShell>
-  );
+  const tabs: Array<{ value: SessionTab; label: string; icon: ReactElement }> = [
+    { value: 'video', label: 'Видеосессия', icon: <VideocamRoundedIcon fontSize="small" /> },
+    { value: 'kanban', label: 'Канбан', icon: <ViewKanbanRoundedIcon fontSize="small" /> },
+    { value: 'stages', label: 'Этапы', icon: <AssignmentTurnedInRoundedIcon fontSize="small" /> },
+  ];
 
   return (
-    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, #eef2f7 0%, #f8fafc 100%)', p: 2 }}>
-      <Stack spacing={2} sx={{ minHeight: 'calc(100vh - 32px)' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#eef2f7', p: { xs: 1, md: 2 } }}>
+      <Stack spacing={1.25} sx={{ minHeight: 'calc(100vh - 16px)' }}>
         {mediaWarning ? <Alert severity="warning" onClose={onDismissMediaWarning}>{mediaWarning}</Alert> : null}
 
-        <Paper sx={{ p: 2, borderRadius: 3 }}>
-          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'stretch', lg: 'center' }}>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Button startIcon={<ArrowBackRoundedIcon />} onClick={onBack}>Назад</Button>
-              <Box>
-                <Typography variant="h5">{sessionRoom?.title || formatRoomName(roomName)}</Typography>
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
-                  <Typography variant="caption" sx={{ px: 1.5, py: 0.5, borderRadius: 999, bgcolor: stageTone.background, color: stageTone.color }}>
-                    {stage ? stageLabels[stage] : 'Стадия ожидается'}
-                  </Typography>
-                  <Typography variant="caption" sx={{ px: 1.5, py: 0.5, borderRadius: 999, bgcolor: '#ffffff', border: '1px solid #e5e7eb' }}>
-                    {stageElapsed != null ? formatMMSS(stageElapsed) : '00:00'}
-                  </Typography>
-                  <Typography variant="caption" sx={{ px: 1.5, py: 0.5, borderRadius: 999, bgcolor: '#ffffff', border: '1px solid #e5e7eb' }}>
-                    {participantName}
-                  </Typography>
-                </Stack>
+        <Paper sx={{ px: 2, py: 1.25, borderRadius: 3, zIndex: 1 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} flexWrap="wrap">
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+              <Button startIcon={<ArrowBackRoundedIcon />} onClick={onBack} variant="text">
+                Назад
+              </Button>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }} noWrap>
+                  {sessionRoom?.title || formatRoomName(roomName)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" noWrap>
+                  Участников: {participantsView.length || participants.length} · {canControlStage ? 'Модератор' : 'Участник'} · {participantName}
+                </Typography>
               </Box>
             </Stack>
-
-            <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-              <TopTabs value={activeView} onChange={setActiveView} />
-              <IconButton onClick={() => setSidebar((prev) => (prev === 'chat' ? null : 'chat'))}>
-                <TaskAltRoundedIcon />
-              </IconButton>
-              <IconButton onClick={() => setSidebar((prev) => (prev === 'controls' ? null : 'controls'))}>
-                <SettingsRoundedIcon />
-              </IconButton>
-              <IconButton onClick={(event) => { setNotificationsAnchor(event.currentTarget); setUnreadNotifications(0); }}>
-                <Badge color="primary" variant="dot" invisible={!unreadNotifications}>
-                  <NotificationsRoundedIcon />
-                </Badge>
-              </IconButton>
+            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="flex-end">
+              <Chip icon={<TimelapseRoundedIcon />} label={stage ? `${stageSteps[stageIndex].label} · ${formatMMSS(stageElapsed)}` : 'Этап не определён'} sx={{ bgcolor: stageColor.bg, color: stageColor.fg }} />
+              <Chip label="Аналитика" icon={<InsightsRoundedIcon fontSize="small" />} onClick={() => setAnalyticsOpen(true)} clickable />
             </Stack>
           </Stack>
         </Paper>
 
-        <Box sx={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: activeView === 'video' && sidebar && !isMobile ? 'minmax(0, 1fr) 360px' : 'minmax(0, 1fr)', gap: 2 }}>
-          <Paper sx={{ minHeight: 0, borderRadius: 3, overflow: 'hidden', position: 'relative', bgcolor: activeView === 'video' ? '#0f172a' : '#ffffff' }}>
-            {activeView === 'board' ? (
-              <KanbanBoard
-                sessionId={sessionId}
-                openCreateKey={taskCreateKey}
-                sessionTitle={sessionRoom?.title ?? formatRoomName(roomName)}
-                sessionDescription={sessionRoom?.description ?? ''}
-                chatMessages={chatMessages}
-                controller={taskController}
-                isModerator={canControlStage}
-                liveParticipantNames={liveParticipantNames}
-                onNotify={pushNotification}
-                onEngineSuggestionsChange={(items) => setSuggestions(items)}
-              />
-            ) : (
-              <>
-                <Box sx={{ height: '100%', pb: '92px' }}>
+        <Paper sx={{ px: 1, py: 0.5, borderRadius: 3, zIndex: 1 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, next: SessionTab) => setActiveTab(next)}
+            variant={isMobile ? 'scrollable' : 'fullWidth'}
+            scrollButtons="auto"
+            sx={{ minHeight: 44, '& .MuiTabs-indicator': { height: 3, borderRadius: 999 } }}
+          >
+            {tabs.map((tab) => (
+              <Tab key={tab.value} value={tab.value} icon={tab.icon} iconPosition="start" label={tab.label} sx={{ minHeight: 44, fontWeight: 600 }} />
+            ))}
+          </Tabs>
+        </Paper>
+
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {activeTab === 'video' ? (
+            <Paper sx={{ height: '100%', minHeight: 0, borderRadius: 3, overflow: 'hidden', bgcolor: '#0f172a' }}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: chatOpen && !isMobile ? 'minmax(0, 1fr) 360px' : 'minmax(0, 1fr)',
+                  height: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <Box sx={{ position: 'relative', minHeight: 0, overflow: 'hidden' }}>
                   <VideoGrid
-                    chatOpen={sidebar === 'chat' && !isMobile}
+                    chatOpen={false}
                     participantTasks={Object.fromEntries(
                       Object.entries(participantTasks).map(([userId, task]) => [
                         Number(userId),
-                        task ? { title: task.title, description: task.description, status: statusLabel(task.status) } : undefined,
+                        task ? { title: task.title, description: task.description, status: task.status } : undefined,
                       ]),
                     )}
-                    onTaskClick={openTaskDetails}
+                    onTaskClick={(userId) => {
+                      setSelectedParticipantId(userId);
+                      const nextTask = activeTasks.find((task) => task.assignee_id === userId) ?? null;
+                      setSelectedTask(nextTask);
+                    }}
                   />
-                </Box>
-                <VideoControls
-                  microphoneCaptureOptions={microphoneCaptureOptions}
-                  cameraCaptureOptions={cameraCaptureOptions}
-                  onTrackDeviceError={onTrackDeviceError}
-                  onParticipantsClick={() => setSidebar((prev) => (prev === 'controls' ? null : 'controls'))}
-                  onChatClick={() => setSidebar((prev) => (prev === 'chat' ? null : 'chat'))}
-                  onSettingsClick={() => setDeviceSettingsOpen(true)}
-                  isChatOpen={sidebar === 'chat'}
-                />
-              </>
-            )}
-          </Paper>
 
-          {activeView === 'video' && sidebar ? (
-            isMobile ? (
-              <Drawer anchor="right" open onClose={() => setSidebar(null)} PaperProps={{ sx: { width: 'min(100vw - 16px, 360px)', m: 1, height: 'calc(100% - 16px)', borderRadius: 3 } }}>
-                {sidebarContent}
-              </Drawer>
-            ) : (
-              sidebarContent
-            )
+                  <Box sx={{ position: 'absolute', left: 16, bottom: 96, zIndex: 2, pointerEvents: 'auto', maxWidth: 360, width: 'calc(100% - 32px)' }}>
+                    <Paper
+                      onClick={() => setSelectedTask(currentTask)}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 3,
+                        cursor: 'pointer',
+                        bgcolor: alpha('#020617', 0.7),
+                        color: '#fff',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        boxShadow: '0 16px 44px rgba(2,6,23,0.28)',
+                      }}
+                    >
+                      <Stack spacing={0.75}>
+                        <Typography variant="caption" sx={{ color: alpha('#fff', 0.75) }}>
+                          Текущая задача
+                        </Typography>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                          {currentTask?.title ?? 'Пока нет активной задачи'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: alpha('#fff', 0.82), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {currentTask?.assignee?.full_name ? `Исполнитель: ${currentTask.assignee.full_name}` : 'Исполнитель не назначен'}
+                        </Typography>
+                      </Stack>
+                    </Paper>
+                  </Box>
+
+                  <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, p: 1.5, zIndex: 2 }}>
+                    <VideoControls
+                      microphoneCaptureOptions={microphoneCaptureOptions}
+                      cameraCaptureOptions={cameraCaptureOptions}
+                      onTrackDeviceError={onTrackDeviceError}
+                      onParticipantsClick={() => setSelectedParticipantId(participantsView[0]?.id ?? null)}
+                      onChatClick={() => setChatOpen((prev) => !prev)}
+                      onSettingsClick={() => setDeviceSettingsOpen(true)}
+                      isChatOpen={chatOpen}
+                    />
+                  </Box>
+                </Box>
+
+                {chatOpen && !isMobile ? (
+                  <Box sx={{ minHeight: 0, borderLeft: '1px solid rgba(255,255,255,0.08)', bgcolor: '#ffffff' }}>
+                    <ChatPanel sessionId={sessionId} variant="session" showHeader />
+                  </Box>
+                ) : null}
+              </Box>
+            </Paper>
+          ) : null}
+
+          {activeTab === 'kanban' ? (
+            <Paper sx={{ height: '100%', minHeight: 0, borderRadius: 3, overflow: 'hidden' }}>
+              <KanbanBoard
+                sessionId={sessionId}
+                sessionTitle={sessionRoom?.title ?? formatRoomName(roomName)}
+                sessionDescription={sessionRoom?.description ?? ''}
+                chatMessages={chatMessages}
+                controller={controller}
+                isModerator={canControlStage}
+                liveParticipantNames={liveParticipantNames}
+              />
+            </Paper>
+          ) : null}
+
+          {activeTab === 'stages' ? (
+            <Box sx={{ height: '100%', minHeight: 0, overflow: 'auto' }}>
+              <Paper sx={{ p: 2, borderRadius: 3, height: '100%', minHeight: 0, overflow: 'auto' }}>
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                      Этапы сессии
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Здесь видно, какие задачи были завершены на каждом этапе.
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gap: 1.5,
+                      gridTemplateColumns: { xs: '1fr', md: 'repeat(5, minmax(0, 1fr))' },
+                      alignItems: 'start',
+                    }}
+                  >
+                    {stageColumns.map((column) => (
+                      <Paper key={column.key} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#f8fafc', minHeight: 220 }}>
+                        <Stack spacing={1.25}>
+                          <Box>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                              {column.label}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {column.tasks.length} задач
+                            </Typography>
+                          </Box>
+                          <Stack spacing={1}>
+                            {column.tasks.length ? column.tasks.map((task) => (
+                              <Paper
+                                key={task.id}
+                                sx={{ p: 1.25, borderRadius: 2, bgcolor: '#ffffff', border: '1px solid', borderColor: 'divider', cursor: 'pointer' }}
+                                onClick={() => setSelectedTask(task)}
+                              >
+                                <Stack spacing={0.5}>
+                                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                    {task.title}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {task.assignee?.full_name ?? 'Без исполнителя'}
+                                  </Typography>
+                                </Stack>
+                              </Paper>
+                            )) : (
+                              <Typography variant="body2" color="text.secondary">
+                                Пока нет завершённых задач
+                              </Typography>
+                            )}
+                          </Stack>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Box>
+                </Stack>
+              </Paper>
+            </Box>
           ) : null}
         </Box>
       </Stack>
 
-      <Dialog open={Boolean(selectedTask)} onClose={() => setSelectedTask(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Детали задачи</DialogTitle>
-        <DialogContent>
-          {selectedTask ? (
-            <Stack spacing={1.5} sx={{ pt: 1 }}>
-              <Typography variant="h6">{selectedTask.title}</Typography>
-              <Typography variant="body2" color="text.secondary">Статус: {statusLabel(selectedTask.status)}</Typography>
-              <Typography variant="body2" color="text.secondary">Исполнитель: {selectedTask.assignee?.full_name ?? 'Не назначен'}</Typography>
-              <Typography variant="body1">{selectedTask.description || 'Описание пока не добавлено.'}</Typography>
+      <Drawer
+        anchor="right"
+        open={Boolean(selectedTask)}
+        onClose={() => setSelectedTask(null)}
+        PaperProps={{
+          sx: {
+            width: 'min(100vw - 16px, 420px)',
+            m: 1,
+            borderRadius: 3,
+            overflowY: 'auto',
+            zIndex: 1400,
+          },
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="h6">Задача</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Подробности задачи и кнопка для выдачи следующей.
+              </Typography>
+            </Box>
+            <Divider />
+            {selectedTask ? (
+              <Stack spacing={1.5}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  {selectedTask.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {selectedTask.description || 'Описание отсутствует.'}
+                </Typography>
+                <TextField label="Статус" value={selectedTask.status} InputProps={{ readOnly: true }} fullWidth />
+                <TextField
+                  label="Исполнитель"
+                  value={selectedTask.assignee?.full_name ?? 'Не назначен'}
+                  InputProps={{ readOnly: true }}
+                  fullWidth
+                />
+                <Stack spacing={1}>
+                  {selectedTask.assignee_id ? (
+                    <Button variant="contained" onClick={() => void handleNextTask(selectedTask.assignee_id ?? undefined)}>
+                      Получить следующую задачу для {selectedTask.assignee?.full_name ?? 'участника'}
+                    </Button>
+                  ) : (
+                    <Button variant="contained" onClick={() => void handleNextTask()}>
+                      Получить следующую задачу
+                    </Button>
+                  )}
+                  <Button variant="outlined" onClick={() => void handleCompleteTask(selectedTask)}>
+                    Завершить задачу
+                  </Button>
+                </Stack>
+              </Stack>
+            ) : null}
+          </Stack>
+        </Box>
+      </Drawer>
+
+      <Drawer
+        anchor="right"
+        open={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        PaperProps={{
+          sx: {
+            width: 'min(100vw - 16px, 460px)',
+            m: 1,
+            borderRadius: 3,
+            overflowY: 'auto',
+            zIndex: 1450,
+          },
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="h6">Аналитика</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Команда, история, последнее назначение и нагрузка участников.
+              </Typography>
+            </Box>
+            <Divider />
+            <Stack spacing={1.5}>
+              <Typography variant="subtitle2">Последнее назначение</Typography>
+              {lastAssignment ? (
+                <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: '#f8fafc' }}>
+                  <Stack spacing={0.75}>
+                    <Typography variant="body2">Задача: {lastAssignment.task_title}</Typography>
+                    <Typography variant="body2">Назначена: {lastAssignment.assignee_name}</Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      {lastAssignment.reasons.map((reason) => (
+                        <Chip key={reason} size="small" label={reason} />
+                      ))}
+                    </Stack>
+                  </Stack>
+                </Paper>
+              ) : (
+                <Typography variant="body2" color="text.secondary">Пока нет данных.</Typography>
+              )}
+
+              <Typography variant="subtitle2">Команда</Typography>
+              <Stack spacing={1}>
+                {participantsView.map((participant) => (
+                  <Paper key={participant.id} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#f8fafc' }}>
+                    <Stack spacing={0.75}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{participant.full_name}</Typography>
+                        <Typography variant="body2">{participant.load_percent}%</Typography>
+                      </Stack>
+                      <Typography variant="caption" color={participant.is_online ? 'success.main' : 'text.secondary'}>
+                        {participant.is_online ? 'Онлайн' : 'Офлайн'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Активных: {participant.active_tasks} · Выполнено: {participant.completed_tasks}
+                      </Typography>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+
+              <Typography variant="subtitle2">Нагрузка участников</Typography>
+              <Stack spacing={1}>
+                {participantsView.map((participant) => (
+                  <Paper key={`load-${participant.id}`} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#f8fafc' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{participant.full_name}</Typography>
+                    <Box sx={{ mt: 1, height: 8, borderRadius: 999, bgcolor: alpha(theme.palette.primary.main, 0.12), overflow: 'hidden' }}>
+                      <Box sx={{ width: `${Math.min(100, participant.load_percent)}%`, height: '100%', bgcolor: participant.load_percent > 80 ? '#dc2626' : '#2563eb' }} />
+                    </Box>
+                  </Paper>
+                ))}
+              </Stack>
+
+              <Typography variant="subtitle2">История распределения</Typography>
+              <Stack spacing={1}>
+                {history.length ? history.map((item) => (
+                  <Paper key={`${item.timestamp}-${item.task_id}`} sx={{ p: 1.25, borderRadius: 2, bgcolor: '#f8fafc' }}>
+                    <Typography variant="caption" color="text.secondary">{formatTimeLabel(item.timestamp)}</Typography>
+                    <Typography variant="body2">{item.message}</Typography>
+                  </Paper>
+                )) : (
+                  <Typography variant="body2" color="text.secondary">История появится после первых назначений.</Typography>
+                )}
+              </Stack>
             </Stack>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+          </Stack>
+        </Box>
+      </Drawer>
 
-      <Menu anchorEl={notificationsAnchor} open={Boolean(notificationsAnchor)} onClose={() => setNotificationsAnchor(null)}>
-        {notifications.length ? notifications.slice().reverse().map((notification) => (
-          <MenuItem key={notification.id} onClick={() => setNotificationsAnchor(null)}>
-            {notification.message}
-          </MenuItem>
-        )) : (
-          <MenuItem disabled>Уведомлений пока нет</MenuItem>
-        )}
-      </Menu>
-
-      <DeviceSettingsDialog open={deviceSettingsOpen} preferences={joinPreferences} onPreferencesChange={onJoinPreferencesChange} onClose={() => setDeviceSettingsOpen(false)} />
+      <Drawer
+        anchor="right"
+        open={deviceSettingsOpen}
+        onClose={() => setDeviceSettingsOpen(false)}
+        PaperProps={{ sx: { width: 'min(100vw - 16px, 380px)', m: 1, borderRadius: 3, zIndex: 1405, overflowY: 'auto' } }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Typography variant="h6">Настройки устройств</Typography>
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            <Button variant="outlined" onClick={() => onJoinPreferencesChange({ audioEnabled: !joinPreferences.audioEnabled })}>Микрофон: {joinPreferences.audioEnabled ? 'вкл' : 'выкл'}</Button>
+            <Button variant="outlined" onClick={() => onJoinPreferencesChange({ videoEnabled: !joinPreferences.videoEnabled })}>Камера: {joinPreferences.videoEnabled ? 'вкл' : 'выкл'}</Button>
+          </Stack>
+        </Box>
+      </Drawer>
 
       <Alert
         severity="success"
-        onClose={clearToast}
+        onClose={() => setNotification('')}
         sx={{
           position: 'fixed',
           bottom: 16,
           left: '50%',
-          transform: widgetsState.lastStartedToast ? 'translateX(-50%)' : 'translate(-50%, 200%)',
-          opacity: widgetsState.lastStartedToast ? 1 : 0,
-          pointerEvents: widgetsState.lastStartedToast ? 'auto' : 'none',
+          transform: notification ? 'translateX(-50%)' : 'translate(-50%, 200%)',
+          opacity: notification ? 1 : 0,
+          pointerEvents: notification ? 'auto' : 'none',
           transition: 'all 180ms ease',
+          zIndex: 1600,
         }}
       >
-        {widgetsState.lastStartedToast?.last_started_by?.name
-          ? `${widgetsState.lastStartedToast.last_started_by.name} запустил(а) Pomodoro`
-          : 'Pomodoro запущен'}
+        {notification}
       </Alert>
     </Box>
   );

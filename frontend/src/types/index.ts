@@ -79,6 +79,19 @@ export interface SessionParticipant {
   can_moderate: boolean;
 }
 
+export interface SessionDashboardParticipant {
+  id: number;
+  full_name: string;
+  is_online: boolean;
+  last_activity_at: string;
+  active_tasks: number;
+  completed_tasks: number;
+  workload_limit: number;
+  load_percent: number;
+  reliability_score: number;
+  skills: string[];
+}
+
 export interface SessionTask {
   id: number;
   group_id: number;
@@ -97,6 +110,68 @@ export interface SessionTask {
   assignee?: TaskPerson | null;
   workflow_stage?: string;
   assignment_status?: string;
+}
+
+export interface SessionTaskAssignmentInfo {
+  assignee_name: string;
+  is_auto_assigned: boolean;
+  reason_codes: string[];
+}
+
+export interface SessionDashboardTask {
+  id: number;
+  title: string;
+  description: string;
+  status: SessionTaskStatus;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  deadline?: string | null;
+  assignee_id?: number | null;
+  assignee_name?: string | null;
+  required_skills: string[];
+  is_completed: boolean;
+  created_at: string;
+  assignment?: SessionTaskAssignmentInfo | null;
+}
+
+export interface SessionDashboardMetrics {
+  total_tasks: number;
+  completed_tasks: number;
+  in_progress_tasks: number;
+  blocked_tasks: number;
+  completion_rate: number;
+  average_load_percent: number;
+  max_active_tasks: number;
+  most_loaded_participant: { id: number; full_name: string; load_percent: number; active_tasks: number } | null;
+  least_loaded_participant: { id: number; full_name: string; load_percent: number; active_tasks: number } | null;
+}
+
+export interface SessionAssignmentExplanation {
+  task_id: number;
+  task_title: string;
+  assignee_id: number;
+  assignee_name: string;
+  assigned_at: string;
+  reasons: string[];
+  auto_assigned: boolean;
+}
+
+export interface SessionAssignmentHistoryItem {
+  timestamp: string;
+  task_id: number;
+  message: string;
+  task_title: string;
+  assignee_name?: string | null;
+  status: SessionTaskStatus;
+}
+
+export interface SessionDashboardSnapshot {
+  session_id: number;
+  generated_at: string;
+  participants: SessionDashboardParticipant[];
+  tasks: SessionDashboardTask[];
+  metrics: SessionDashboardMetrics;
+  last_assignment: SessionAssignmentExplanation | null;
+  history: SessionAssignmentHistoryItem[];
 }
 
 export interface ChatMessage {

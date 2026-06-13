@@ -15,6 +15,7 @@ from app.schemas import (
     VideoSessionRoomRead,
 )
 from app.services.session_service import SessionService
+from app.services.session_dashboard_service import SessionDashboardService
 from app.services.session_summary_service import SessionSummaryService
 
 router = APIRouter()
@@ -160,6 +161,12 @@ def session_participants(session_id: int, db: Session = Depends(get_db), user=De
         )
         for participant, participant_user in rows
     ]
+
+
+@router.get('/{session_id}/dashboard')
+def session_dashboard(session_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    ensure_session_member(session_id, user, db)
+    return SessionDashboardService(db).build_snapshot(session_id)
 
 
 @router.get('/{session_id}/summary', response_model=SessionSummaryRead)

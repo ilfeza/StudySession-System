@@ -11,28 +11,14 @@ import { ParticipantTile } from './ParticipantTile';
 type ParticipantTaskMap = Record<number, { title: string; description: string; status: string } | undefined>;
 
 function resolveGrid(count: number) {
-  if (count <= 1) {
-    return { columns: 'minmax(0, 1fr)', rows: 'minmax(0, 1fr)', justifyItems: 'center' } as const;
-  }
-  if (count === 2) {
-    return { columns: 'repeat(2, minmax(0, 1fr))', rows: 'minmax(0, 1fr)', justifyItems: 'stretch' } as const;
-  }
-  if (count <= 4) {
-    return { columns: 'repeat(2, minmax(0, 1fr))', rows: 'repeat(2, minmax(0, 1fr))', justifyItems: 'stretch' } as const;
-  }
-  if (count <= 6) {
-    return { columns: 'repeat(3, minmax(0, 1fr))', rows: 'repeat(2, minmax(0, 1fr))', justifyItems: 'stretch' } as const;
-  }
-  if (count <= 9) {
-    return { columns: 'repeat(3, minmax(0, 1fr))', rows: 'repeat(3, minmax(0, 1fr))', justifyItems: 'stretch' } as const;
-  }
-  return { columns: 'repeat(4, minmax(0, 1fr))', rows: 'repeat(3, minmax(0, 1fr))', justifyItems: 'stretch' } as const;
+  if (count <= 1) return { columns: 'minmax(0, 1fr)', rows: 'minmax(0, 1fr)', justifyItems: 'center' } as const;
+  if (count === 2) return { columns: 'repeat(2, minmax(0, 1fr))', rows: 'minmax(0, 1fr)', justifyItems: 'stretch' } as const;
+  if (count <= 4) return { columns: 'repeat(2, minmax(0, 1fr))', rows: 'repeat(2, minmax(0, 1fr))', justifyItems: 'stretch' } as const;
+  return { columns: 'repeat(3, minmax(0, 1fr))', rows: 'repeat(2, minmax(0, 1fr))', justifyItems: 'stretch' } as const;
 }
 
 function extractUserId(identity?: string) {
-  if (!identity) {
-    return null;
-  }
+  if (!identity) return null;
   const prefix = identity.split('-')[0];
   const parsed = Number(prefix);
   return Number.isFinite(parsed) ? parsed : null;
@@ -54,22 +40,15 @@ export function VideoGrid({
     ],
     { onlySubscribed: false },
   );
-  const pageSize = chatOpen ? 9 : 12;
+  const pageSize = chatOpen ? 6 : 9;
   const totalPages = Math.max(1, Math.ceil(Math.max(tracks.length, 1) / pageSize));
   const [page, setPage] = useState(0);
 
-  useEffect(() => {
-    setPage(0);
-  }, [pageSize]);
-
-  useEffect(() => {
-    setPage((prev) => Math.min(prev, totalPages - 1));
-  }, [totalPages]);
+  useEffect(() => setPage(0), [pageSize]);
+  useEffect(() => setPage((prev) => Math.min(prev, totalPages - 1)), [totalPages]);
 
   const visibleTracks = useMemo(() => {
-    if (!tracks.length) {
-      return [];
-    }
+    if (!tracks.length) return [];
     const start = page * pageSize;
     return tracks.slice(start, start + pageSize);
   }, [page, pageSize, tracks]);
@@ -132,23 +111,13 @@ export function VideoGrid({
             color: '#ffffff',
           }}
         >
-          <IconButton
-            size="small"
-            onClick={() => setPage((prev) => Math.max(0, prev - 1))}
-            disabled={page === 0}
-            sx={{ color: '#ffffff', '&.Mui-disabled': { color: alpha('#ffffff', 0.4) } }}
-          >
+          <IconButton size="small" onClick={() => setPage((prev) => Math.max(0, prev - 1))} disabled={page === 0} sx={{ color: '#ffffff', '&.Mui-disabled': { color: alpha('#ffffff', 0.4) } }}>
             <ChevronLeftRoundedIcon fontSize="small" />
           </IconButton>
           <Typography variant="caption" sx={{ minWidth: 92, textAlign: 'center', color: 'inherit' }}>
             {`Страница ${page + 1} из ${totalPages}`}
           </Typography>
-          <IconButton
-            size="small"
-            onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
-            disabled={page >= totalPages - 1}
-            sx={{ color: '#ffffff', '&.Mui-disabled': { color: alpha('#ffffff', 0.4) } }}
-          >
+          <IconButton size="small" onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))} disabled={page >= totalPages - 1} sx={{ color: '#ffffff', '&.Mui-disabled': { color: alpha('#ffffff', 0.4) } }}>
             <ChevronRightRoundedIcon fontSize="small" />
           </IconButton>
         </Stack>

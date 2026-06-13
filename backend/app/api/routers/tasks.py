@@ -132,3 +132,22 @@ async def reassign_inactive(
     for item in items:
         await tasks_manager.broadcast(room_id, {'event': 'task_updated', 'payload': item.model_dump(mode='json')})
     return items
+
+
+@router.post('/next', response_model=TaskRead | None)
+async def assign_next_task(
+    room_id: int = Query(..., alias='roomId'),
+    preferred_user_id: int | None = Query(None, alias='preferredUserId'),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    session = ensure_session_member(room_id, user, db)
+    service = TaskService(db)
+    result = AssignmentService(db).assign_next_session_task(room_id, preferred_user_id=preferred_user_id)
+    if result is None:
+        return None
+
+    task = result['task']
+    read = _task_read(task, service)
+    await tasks_manager.broadcast(session.id, {'event': 'task_updated', 'payload': read.model_dump(mode='json')})
+    return read

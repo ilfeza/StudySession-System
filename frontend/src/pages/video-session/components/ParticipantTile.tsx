@@ -103,32 +103,26 @@ export function ParticipantTile({
             alignItems: 'stretch',
           }}
         >
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-            <TaskAltRoundedIcon sx={{ color: '#f8fafc', fontSize: 18, flexShrink: 0 }} />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography
-                variant="caption"
-                sx={{
-                  color: alpha('#ffffff', 0.78),
-                  display: 'block',
-                }}
-              >
+          <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+              <TaskAltRoundedIcon sx={{ color: '#f8fafc', fontSize: 18, flexShrink: 0 }} />
+              <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.72) }}>
                 Текущая задача
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  display: '-webkit-box',
-                  overflow: 'hidden',
-                  WebkitLineClamp: 1,
-                  WebkitBoxOrient: 'vertical',
-                }}
-              >
-                {task.title}
-              </Typography>
-            </Box>
+            </Stack>
+            <Typography
+              variant="body2"
+              sx={{
+                color: '#ffffff',
+                fontWeight: 700,
+                display: '-webkit-box',
+                overflow: 'hidden',
+                WebkitLineClamp: 1,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {task.title}
+            </Typography>
           </Stack>
         </ButtonBase>
       ) : null}

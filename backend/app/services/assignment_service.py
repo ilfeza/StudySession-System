@@ -88,6 +88,57 @@ class AssignmentService:
             self.db.refresh(task)
         return updated
 
+    def assign_next_session_task(self, session_id: int, preferred_user_id: int | None = None) -> dict | None:
+        tasks = (
+            self.db.query(Task)
+            .filter(
+                Task.session_id == session_id,
+                Task.status.in_([SessionTaskStatus.backlog, SessionTaskStatus.blocked, SessionTaskStatus.assigned]),
+            )
+            .order_by(Task.deadline.is_(None), Task.deadline.asc(), Task.priority.desc(), Task.created_at.asc())
+            .all()
+        )
+        if not tasks:
+            return None
+
+        suggestions = []
+        for task in tasks:
+            suggestion = self.suggest_session_assignee(session_id, task, exclude_user_ids={task.assignee_id} if task.assignee_id else None)
+            if suggestion is None:
+                continue
+            suggestions.append((task, suggestion))
+
+        if not suggestions:
+            task = tasks[0]
+            task.status = SessionTaskStatus.backlog
+            task.assignee_id = None
+            self.db.commit()
+            self.db.refresh(task)
+            return {'task': task, 'suggestion': None}
+
+        if preferred_user_id is not None:
+            preferred = next((item for item in suggestions if item[1]['user'].id == preferred_user_id), None)
+            if preferred is not None:
+                task, suggestion = preferred
+            else:
+                preferred_tasks = []
+                for task_item in tasks:
+                    suggestion = self.suggest_session_assignee(session_id, task_item, exclude_user_ids={task_item.assignee_id} if task_item.assignee_id else None)
+                    if suggestion is not None and suggestion['user'].id == preferred_user_id:
+                        preferred_tasks.append((task_item, suggestion))
+                if preferred_tasks:
+                    task, suggestion = preferred_tasks[0]
+                else:
+                    task, suggestion = suggestions[0]
+        else:
+            task, suggestion = suggestions[0]
+
+        task.assignee_id = suggestion['user'].id
+        task.status = SessionTaskStatus.assigned
+        self.db.commit()
+        self.db.refresh(task)
+        return {'task': task, 'suggestion': suggestion}
+
     def _load_candidates(self, group_id: int) -> list[User]:
         return (
             self.db.query(User)

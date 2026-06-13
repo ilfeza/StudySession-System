@@ -3,13 +3,14 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   createSessionTask,
   deleteSessionTask,
+  getSessionDashboard,
   listSessionParticipants,
   listSessionTasks,
   updateSessionTask,
   type CreateSessionTaskInput,
   type UpdateSessionTaskInput,
 } from '../../api/sessionTasks';
-import type { SessionParticipant, SessionTask } from '../../types';
+import type { SessionDashboardSnapshot, SessionParticipant, SessionTask } from '../../types';
 
 function upsertTask(tasks: SessionTask[], nextTask: SessionTask) {
   const filtered = tasks.filter((task) => task.id !== nextTask.id);
@@ -19,6 +20,7 @@ function upsertTask(tasks: SessionTask[], nextTask: SessionTask) {
 export function useSessionTasks(sessionId: number) {
   const [tasks, setTasks] = useState<SessionTask[]>([]);
   const [participants, setParticipants] = useState<SessionParticipant[]>([]);
+  const [dashboard, setDashboard] = useState<SessionDashboardSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const wsUrl = useMemo(() => {
@@ -38,13 +40,14 @@ export function useSessionTasks(sessionId: number) {
     setLoading(true);
     setError('');
 
-    Promise.all([listSessionTasks(sessionId), listSessionParticipants(sessionId)])
-      .then(([taskItems, participantItems]) => {
+    Promise.all([listSessionTasks(sessionId), listSessionParticipants(sessionId), getSessionDashboard(sessionId)])
+      .then(([taskItems, participantItems, dashboardSnapshot]) => {
         if (cancelled) {
           return;
         }
         setTasks(taskItems);
         setParticipants(participantItems);
+        setDashboard(dashboardSnapshot);
       })
       .catch((err: Error) => {
         if (!cancelled) {
@@ -69,9 +72,11 @@ export function useSessionTasks(sessionId: number) {
       const parsed = JSON.parse(event.data);
       if (parsed?.event === 'task_created' || parsed?.event === 'task_updated') {
         setTasks((prev) => upsertTask(prev, parsed.payload as SessionTask));
+        void getSessionDashboard(sessionId).then(setDashboard).catch(() => null);
       }
       if (parsed?.event === 'task_deleted') {
         setTasks((prev) => prev.filter((task) => task.id !== parsed.payload.id));
+        void getSessionDashboard(sessionId).then(setDashboard).catch(() => null);
       }
     };
     socket.onerror = () => setError('Не удалось подключить обновления задач в реальном времени.');
@@ -82,6 +87,10 @@ export function useSessionTasks(sessionId: number) {
     setError('');
     try {
       await createSessionTask({ room_id: sessionId, ...payload });
+      await Promise.all([listSessionTasks(sessionId), getSessionDashboard(sessionId)]).then(([taskItems, dashboardSnapshot]) => {
+        setTasks(taskItems);
+        setDashboard(dashboardSnapshot);
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Не удалось создать задачу.';
       setError(message);
@@ -94,6 +103,7 @@ export function useSessionTasks(sessionId: number) {
     try {
       const updated = await updateSessionTask(taskId, payload);
       setTasks((prev) => upsertTask(prev, updated));
+      void getSessionDashboard(sessionId).then(setDashboard).catch(() => null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Не удалось обновить задачу.';
       setError(message);
@@ -106,6 +116,7 @@ export function useSessionTasks(sessionId: number) {
     try {
       await deleteSessionTask(taskId);
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      void getSessionDashboard(sessionId).then(setDashboard).catch(() => null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Не удалось удалить задачу.';
       setError(message);
@@ -116,6 +127,7 @@ export function useSessionTasks(sessionId: number) {
   return {
     tasks,
     participants,
+    dashboard,
     loading,
     error,
     createTask,
