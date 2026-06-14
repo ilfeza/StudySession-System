@@ -31,6 +31,7 @@ def _user_read(user: User) -> UserRead:
         reliability_score=user.reliability_score,
         workload_limit=user.workload_limit,
         is_active=user.is_active,
+        avatar_url=user.avatar_url or '',
     )
 
 
@@ -43,6 +44,7 @@ def _directory_user(user: User) -> UserDirectoryRead:
         is_online=False,
         current_status='Нет активной сессии',
         is_active=user.is_active,
+        avatar_url=user.avatar_url or '',
     )
 
 

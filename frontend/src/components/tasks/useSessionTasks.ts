@@ -124,6 +124,12 @@ export function useSessionTasks(sessionId: number) {
     }
   }
 
+  async function refreshDashboard() {
+    const dashboardSnapshot = await getSessionDashboard(sessionId);
+    setDashboard(dashboardSnapshot);
+    return dashboardSnapshot;
+  }
+
   return {
     tasks,
     participants,
@@ -134,6 +140,7 @@ export function useSessionTasks(sessionId: number) {
     patchTask,
     removeTask,
     refreshParticipants,
+    refreshDashboard,
   };
 }
 

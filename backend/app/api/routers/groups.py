@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 from app.api.deps import ensure_group_member, ensure_moderator, get_current_user
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models import Group
+from app.models import Group, GroupMember, User
 from app.schemas import (
     GroupCreate,
     GroupJoinByKey,
     GroupMaterialCreateLink,
     GroupMaterialRead,
     GroupMemberAdd,
+    GroupMemberRead,
     GroupRead,
     GroupUpdate,
     SessionSummaryHistoryItem,
@@ -20,6 +21,18 @@ from app.services.material_service import MaterialService
 from app.services.session_summary_service import SessionSummaryService
 
 router = APIRouter()
+
+
+def _member_read(group: Group, membership: GroupMember) -> GroupMemberRead:
+    user = membership.user
+    return GroupMemberRead(
+        user_id=membership.user_id,
+        full_name=user.full_name if user else 'Неизвестный',
+        email=user.email if user else '',
+        can_moderate=membership.can_moderate,
+        is_owner=group.owner_id == membership.user_id,
+        joined_at=membership.joined_at,
+    )
 
 
 def _material_read(material) -> GroupMaterialRead:
@@ -123,6 +136,33 @@ def delete_group(group_id: int, db: Session = Depends(get_db), user=Depends(get_
         raise HTTPException(status_code=403, detail='Удалять группу может только владелец.')
     GroupService(db).delete_group(group)
     return {'message': 'Группа удалена.'}
+
+
+@router.get('/{group_id}/members', response_model=list[GroupMemberRead])
+def list_group_members(group_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    ensure_group_member(group_id, user, db)
+    group = db.get(Group, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail='Группа не найдена.')
+    members = GroupService(db).list_members(group_id)
+    return [_member_read(group, member) for member in members]
+
+
+@router.delete('/{group_id}/members/{member_user_id}')
+def remove_group_member(
+    group_id: int,
+    member_user_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    group = db.get(Group, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail='Группа не найдена.')
+    try:
+        GroupService(db).remove_member(group, member_user_id, user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {'message': 'Участник удалён из группы.'}
 
 
 @router.get('/{group_id}', response_model=GroupRead)

@@ -78,6 +78,7 @@ class SessionDashboardService:
                     'workload_limit': load.workload_limit,
                     'load_percent': load.load_percent,
                     'reliability_score': user.reliability_score,
+                    'is_blocked': participant.is_blocked,
                     'skills': _parse_skills(user.skills),
                 }
             )

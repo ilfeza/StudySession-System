@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     ChatMessage,
+    GroupAnnouncement,
     SessionParticipant,
     SessionStage,
     SessionSummary,
@@ -15,6 +16,7 @@ from app.models import (
     SessionSummaryStatus,
     SessionSummaryTask,
     Task,
+    User,
     VideoSession,
 )
 from app.services.session_stage_service import SessionStageService
@@ -65,6 +67,8 @@ class SessionSummaryService:
         self._sync_tasks(summary, session, payload.get('tasks', []))
         self._hydrate_insights(summary, session)
         self._mark_session_finished(session)
+        if summary.status == SessionSummaryStatus.completed:
+            self._publish_summary_announcement(session, summary, user_id)
 
         self.db.commit()
         self.db.refresh(summary)
@@ -184,6 +188,19 @@ class SessionSummaryService:
         if session.ends_at is None:
             session.ends_at = datetime.utcnow()
         session.is_active = False
+
+    def _publish_summary_announcement(self, session: VideoSession, summary: SessionSummary, user_id: int) -> None:
+        user = self.db.get(User, user_id)
+        if not user:
+            return
+
+        parts = [f'Завершена сессия «{session.title}».']
+        if summary.completed_work.strip():
+            parts.append(f'\n\nЧто сделано:\n{summary.completed_work.strip()}')
+        if summary.next_steps.strip():
+            parts.append(f'\n\nСледующие шаги:\n{summary.next_steps.strip()}')
+
+        self.db.add(GroupAnnouncement(group_id=session.group_id, author_id=user.id, body=''.join(parts)))
 
     @staticmethod
     def _build_short_description(completed_work: str, next_steps: str) -> str:

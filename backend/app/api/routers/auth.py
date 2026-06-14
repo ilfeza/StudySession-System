@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -20,6 +20,7 @@ def _user_read(user) -> UserRead:
         reliability_score=user.reliability_score,
         workload_limit=user.workload_limit,
         is_active=user.is_active,
+        avatar_url=user.avatar_url or '',
     )
 
 

@@ -1,8 +1,10 @@
+from fastapi import APIRouter, Depends, File as FastAPIFile, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-
-from fastapi import APIRouter, Depends
+from pathlib import Path
+from uuid import uuid4
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import Task
 from app.schemas import UserProfileUpdate, UserProgressRead, UserSessionHistoryItem, UserRead
@@ -71,4 +73,41 @@ def update_me(payload: UserProfileUpdate, db: Session = Depends(get_db), user=De
         reliability_score=user.reliability_score,
         workload_limit=user.workload_limit,
         is_active=user.is_active,
+        avatar_url=user.avatar_url or '',
+    )
+
+
+@router.post('/me/avatar', response_model=UserRead)
+async def upload_avatar(
+    file: UploadFile = FastAPIFile(...),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail='Можно загрузить только изображение.')
+
+    extension = Path(file.filename or 'avatar.png').suffix.lower() or '.png'
+    if extension not in {'.png', '.jpg', '.jpeg', '.webp', '.gif'}:
+        raise HTTPException(status_code=400, detail='Неподдерживаемый формат изображения.')
+
+    upload_dir = Path(get_settings().uploads_dir) / 'avatars'
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    stored_name = f'{user.id}_{uuid4().hex}{extension}'
+    target = upload_dir / stored_name
+    content = await file.read()
+    target.write_bytes(content)
+
+    user.avatar_url = f'/files/avatars/{stored_name}'
+    db.commit()
+    db.refresh(user)
+    return UserRead(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        skills=[skill for skill in user.skills.split(',') if skill],
+        reliability_score=user.reliability_score,
+        workload_limit=user.workload_limit,
+        is_active=user.is_active,
+        avatar_url=user.avatar_url or '',
     )

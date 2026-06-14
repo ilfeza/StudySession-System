@@ -1,13 +1,18 @@
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
-import Groups2RoundedIcon from '@mui/icons-material/Groups2Rounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import {
   Alert,
+  Avatar,
   Box,
   Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
+  InputLabel,
   MenuItem,
   Paper,
   Select,
@@ -15,39 +20,30 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/ru';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '../api/client';
-import { AnnouncementFeedItem, Group, Task } from '../types';
+import { useAuth } from '../context/AuthContext';
+import type { AnnouncementFeedItem, Group } from '../types';
 
 dayjs.extend(relativeTime);
 dayjs.locale('ru');
 
-function MetricCard({ title, value, subtitle, icon }: { title: string; value: string | number; subtitle: string; icon: React.ReactNode }) {
-  return (
-    <Paper sx={{ p: 3, borderRadius: 3 }}>
-      <Stack spacing={2}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="subtitle2" color="text.secondary">{title}</Typography>
-          <Box sx={{ color: 'text.secondary' }}>{icon}</Box>
-        </Stack>
-        <Typography variant="h3">{value}</Typography>
-        <Typography variant="body2" color="text.secondary">{subtitle}</Typography>
-      </Stack>
-    </Paper>
-  );
+function authorInitials(name: string) {
+  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
 export function DashboardPage() {
+  const theme = useTheme();
+  const { user } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementFeedItem[]>([]);
-  const [input, setInput] = useState('');
-  const [summary, setSummary] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
   const [postGroupId, setPostGroupId] = useState<number | ''>('');
   const [postBody, setPostBody] = useState('');
   const [posting, setPosting] = useState(false);
@@ -63,27 +59,15 @@ export function DashboardPage() {
       const loadedGroups = groupsResponse.data;
       setGroups(loadedGroups);
       setAnnouncements(feedResponse.data);
-      const ids = loadedGroups.map((g) => g.id);
+      const ids = loadedGroups.map((group) => group.id);
       setPostGroupId((prev) => {
-        if (ids.length === 0) {
-          return '';
-        }
-        if (typeof prev === 'number' && ids.includes(prev)) {
-          return prev;
-        }
+        if (ids.length === 0) return '';
+        if (typeof prev === 'number' && ids.includes(prev)) return prev;
         return ids[0];
       });
-      const firstGroup = loadedGroups[0];
-      if (firstGroup) {
-        const tasksResponse = await api.get<Task[]>(`/tasks/group/${firstGroup.id}`);
-        setTasks(tasksResponse.data);
-      } else {
-        setTasks([]);
-      }
     } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить данные дашборда.');
+      setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить данные.');
       setGroups([]);
-      setTasks([]);
       setAnnouncements([]);
     }
   }, []);
@@ -91,13 +75,6 @@ export function DashboardPage() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
-
-  const activeTasksCount = useMemo(() => tasks.filter((task) => !task.is_completed).length, [tasks]);
-
-  async function summarize() {
-    const response = await api.post<{ summary: string }>('/ml/summarize', { text: input });
-    setSummary(response.data.summary);
-  }
 
   async function submitAnnouncement() {
     if (postGroupId === '') {
@@ -111,8 +88,12 @@ export function DashboardPage() {
         group_id: postGroupId,
         body: postBody,
       });
-      setAnnouncements((prev) => [data, ...prev.filter((a) => a.id !== data.id)]);
+      setAnnouncements((prev) => [{
+        ...data,
+        author_avatar_url: data.author_avatar_url || user?.avatar_url || '',
+      }, ...prev.filter((item) => item.id !== data.id)]);
       setPostBody('');
+      setCreateOpen(false);
     } catch (err: unknown) {
       setPostError(err instanceof Error ? err.message : 'Не удалось опубликовать.');
     } finally {
@@ -121,141 +102,120 @@ export function DashboardPage() {
   }
 
   return (
-    <Stack spacing={3}>
-      <Paper sx={{ p: { xs: 3, md: 4 }, borderRadius: 3 }}>
-        <Typography variant="h3">Дашборд</Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
-          Обзор групп, задач и командных обновлений в спокойной, рабочей структуре.
-        </Typography>
-      </Paper>
+    <Stack spacing={2}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} flexWrap="wrap">
+        <Typography variant="h4">Главная</Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddRoundedIcon />}
+          onClick={() => setCreateOpen(true)}
+          disabled={!groups.length}
+        >
+          Создать объявление
+        </Button>
+      </Stack>
 
       {loadError ? <Alert severity="error">{loadError}</Alert> : null}
 
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
-        }}
-      >
-        <MetricCard title="Группы" value={groups.length} subtitle="Активные пространства для совместной работы" icon={<Groups2RoundedIcon fontSize="small" />} />
-        <MetricCard title="Задачи в работе" value={activeTasksCount} subtitle="Открытые задачи в первой доступной группе" icon={<TaskAltRoundedIcon fontSize="small" />} />
-        <MetricCard title="AI-суммаризация" value="ML" subtitle="Краткое резюме больших текстовых материалов" icon={<AutoAwesomeRoundedIcon fontSize="small" />} />
-      </Box>
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2.5 }}>
+        <Stack spacing={1.5}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <CampaignRoundedIcon fontSize="small" color="action" />
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Объявления команд</Typography>
+          </Stack>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.4fr) minmax(360px, 0.9fr)' },
-          alignItems: 'start',
-        }}
-      >
-        <Paper sx={{ p: 3, borderRadius: 3 }}>
-          <Stack spacing={3}>
-            <Stack spacing={1}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <CampaignRoundedIcon fontSize="small" />
-                <Typography variant="h5">Объявления команд</Typography>
-              </Stack>
-              <Typography variant="body2" color="text.secondary">
-                Короткие обновления по дедлайнам, ссылкам и договоренностям. Лента остается компактной, а форма публикации не мешает чтению.
-              </Typography>
-            </Stack>
-
-            {groups.length > 0 ? (
-              <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
-                <Stack spacing={2}>
-                  <Typography variant="subtitle2">Новое сообщение</Typography>
-                  <FormControl fullWidth size="small">
-                    <Select
-                      value={postGroupId === '' ? '' : String(postGroupId)}
-                      displayEmpty
-                      onChange={(e) => setPostGroupId(Number(e.target.value))}
-                    >
-                      {groups.map((group) => (
-                        <MenuItem key={group.id} value={group.id}>{group.name}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <TextField
-                    placeholder="Короткое объявление для группы"
-                    multiline
-                    minRows={4}
-                    fullWidth
-                    value={postBody}
-                    onChange={(e) => setPostBody(e.target.value)}
-                  />
-                  {postError ? <Alert severity="warning">{postError}</Alert> : null}
-                  <Box>
-                    <Button
-                      variant="contained"
-                      startIcon={<SendRoundedIcon />}
-                      disabled={posting || !postBody.trim()}
-                      onClick={() => void submitAnnouncement()}
-                    >
-                      Опубликовать
-                    </Button>
-                  </Box>
-                </Stack>
-              </Paper>
-            ) : (
-              <Alert severity="info">Вступите в группу на странице «Группы», чтобы публиковать объявления.</Alert>
-            )}
-
-            <Stack spacing={1.5}>
-              {announcements.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">Пока нет объявлений.</Typography>
-              ) : (
-                announcements.map((item) => (
-                  <Paper key={item.id} sx={{ p: 2, borderRadius: 3, bgcolor: '#ffffff' }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="subtitle2">{item.group_name}</Typography>
-                        <Typography variant="caption" color="text.secondary">{item.author_name}</Typography>
-                      </Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-                        {dayjs(item.created_at).fromNow()}
+          {announcements.length === 0 ? (
+            <Alert severity="info" sx={{ borderRadius: 2 }}>
+              Пока нет объявлений. Создайте первое, чтобы команда увидела обновление.
+            </Alert>
+          ) : (
+            <Stack spacing={1.25}>
+              {announcements.map((item) => (
+                <Paper
+                  key={item.id}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2.5,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.03)} 0%, transparent 100%)`,
+                  }}
+                >
+                  <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                    <Avatar src={item.author_avatar_url || undefined} sx={{ width: 40, height: 40, bgcolor: 'text.primary', color: 'background.paper', fontSize: '0.85rem', fontWeight: 700 }}>
+                      {authorInitials(item.author_name)}
+                    </Avatar>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{item.author_name}</Typography>
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.25 }}>
+                            <Chip size="small" label={item.group_name} sx={{ height: 22 }} />
+                            <Typography variant="caption" color="text.secondary">
+                              {dayjs(item.created_at).fromNow()}
+                            </Typography>
+                          </Stack>
+                        </Box>
+                      </Stack>
+                      <Typography variant="body2" sx={{ mt: 1.25, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                        {item.body}
                       </Typography>
-                    </Stack>
-                    <Typography sx={{ mt: 1.25, whiteSpace: 'pre-wrap' }}>{item.body}</Typography>
-                  </Paper>
-                ))
-              )}
+                    </Box>
+                  </Stack>
+                </Paper>
+              ))}
             </Stack>
-          </Stack>
-        </Paper>
+          )}
+        </Stack>
+      </Paper>
 
-        <Paper sx={{ p: 3, borderRadius: 3 }}>
-          <Stack spacing={2}>
-            <Stack spacing={1}>
-              <Typography variant="h5">Суммаризация текста</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Вставьте учебный материал, чтобы быстро получить краткое резюме.
-              </Typography>
-            </Stack>
-            <TextField
-              placeholder="Вставьте текст на русском языке"
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              multiline
-              minRows={12}
-              fullWidth
-            />
-            <Box>
-              <Button variant="contained" onClick={() => void summarize()} disabled={!input.trim()}>
-                Получить резюме
-              </Button>
-            </Box>
-            {summary ? (
-              <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f9fafb' }}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Результат</Typography>
-                <Typography variant="body2">{summary}</Typography>
-              </Paper>
-            ) : null}
+      <Dialog open={createOpen} onClose={() => !posting && setCreateOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Новое объявление</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            {groups.length === 0 ? (
+              <Alert severity="info">Вступите в группу, чтобы публиковать объявления.</Alert>
+            ) : (
+              <>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="announcement-group-label">Группа</InputLabel>
+                  <Select
+                    labelId="announcement-group-label"
+                    label="Группа"
+                    value={postGroupId === '' ? '' : String(postGroupId)}
+                    onChange={(event) => setPostGroupId(Number(event.target.value))}
+                  >
+                    {groups.map((group) => (
+                      <MenuItem key={group.id} value={group.id}>{group.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="Текст объявления"
+                  placeholder="Короткое сообщение для участников группы"
+                  multiline
+                  minRows={4}
+                  fullWidth
+                  value={postBody}
+                  onChange={(event) => setPostBody(event.target.value)}
+                />
+              </>
+            )}
+            {postError ? <Alert severity="warning">{postError}</Alert> : null}
           </Stack>
-        </Paper>
-      </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCreateOpen(false)} disabled={posting}>Отмена</Button>
+          <Button
+            variant="contained"
+            startIcon={<SendRoundedIcon />}
+            disabled={posting || !postBody.trim() || postGroupId === ''}
+            onClick={() => void submitAnnouncement()}
+          >
+            Опубликовать
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

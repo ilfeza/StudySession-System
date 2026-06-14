@@ -13,15 +13,7 @@ const statusLabels: Record<SessionTaskStatus, string> = {
   done: 'Готово',
 };
 
-function toInputDateTime(value?: string | null) {
-  if (!value) {
-    return '';
-  }
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset();
-  const normalized = new Date(date.getTime() - offset * 60_000);
-  return normalized.toISOString().slice(0, 16);
-}
+import { DeadlineInput } from './DeadlineInput';
 
 export function TaskDetailsDrawer({
   task,
@@ -57,7 +49,7 @@ export function TaskDetailsDrawer({
       title: task.title,
       description: task.description,
       assignee_id: task.assignee_id ? String(task.assignee_id) : '',
-      deadline: toInputDateTime(task.deadline),
+      deadline: task.deadline ? String(task.deadline) : '',
       status: task.status,
       priority: task.priority,
     });
@@ -80,9 +72,6 @@ export function TaskDetailsDrawer({
       <Stack spacing={2}>
         <Box>
           <Typography variant="h6">Детали задачи</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Обновите колонку, исполнителя и описание прямо из боковой панели.
-          </Typography>
         </Box>
 
         <TextField label="Название" value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} />
@@ -122,7 +111,10 @@ export function TaskDetailsDrawer({
           <MenuItem value="high">Высокий</MenuItem>
           <MenuItem value="critical">Критичный</MenuItem>
         </TextField>
-        <TextField label="Дедлайн" type="datetime-local" value={form.deadline} onChange={(event) => setForm((prev) => ({ ...prev, deadline: event.target.value }))} InputLabelProps={{ shrink: true }} />
+        <DeadlineInput
+          value={form.deadline}
+          onChange={(deadline) => setForm((prev) => ({ ...prev, deadline }))}
+        />
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -133,7 +125,7 @@ export function TaskDetailsDrawer({
           >
             Сохранить
           </Button>
-          <Button variant="outlined" startIcon={<AutorenewRoundedIcon />} onClick={() => task && onReassign(task)} disabled={!task}>
+          <Button variant="outlined" fullWidth startIcon={<AutorenewRoundedIcon />} onClick={() => task && onReassign(task)} disabled={!task}>
             Переназначить
           </Button>
         </Stack>

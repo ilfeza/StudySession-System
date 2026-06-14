@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import type { SessionParticipant, SessionTaskStatus, Task } from '../../types';
 import { SkillsTagInput } from '../SkillsTagInput';
+import { DeadlineInput } from './DeadlineInput';
 
 const statusLabels: Record<SessionTaskStatus, string> = {
   backlog: 'Бэклог',
@@ -77,7 +78,15 @@ export function TaskCreateForm({
   return (
     <Stack spacing={1.5} sx={{ pt: 1 }}>
       <TextField label="Название задачи" value={title} onChange={(event) => setTitle(event.target.value)} disabled={disabled || submitting} required />
-      <TextField label="Описание" value={description} onChange={(event) => setDescription(event.target.value)} disabled={disabled || submitting} multiline minRows={4} />
+      <TextField
+        label="Описание"
+        value={description}
+        onChange={(event) => setDescription(event.target.value)}
+        disabled={disabled || submitting}
+        multiline
+        minRows={2}
+        fullWidth
+      />
       <TextField
         select
         label="Исполнитель"
@@ -121,18 +130,12 @@ export function TaskCreateForm({
         value={requiredSkills}
         onChange={setRequiredSkills}
         label="Требуемые навыки"
-        helperText="Укажите навыки, которые нужны для этой задачи. Они будут использоваться при распределении."
         disabled={disabled || submitting}
       />
-      <TextField
-        label="Дедлайн"
-        type="datetime-local"
+      <DeadlineInput
         value={deadline}
-        onChange={(event) => setDeadline(event.target.value)}
+        onChange={setDeadline}
         disabled={disabled || submitting}
-        required
-        helperText="Укажите время, к которому задача должна быть выполнена"
-        InputLabelProps={{ shrink: true }}
       />
       <Button variant="contained" startIcon={<AddTaskRoundedIcon />} onClick={handleSubmit} disabled={disabled || submitting || !title.trim() || !deadline}>
         {submitLabel}

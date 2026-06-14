@@ -11,6 +11,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -84,6 +85,7 @@ class User(Base):
     reliability_score: Mapped[float] = mapped_column(Float, default=0.8, nullable=False)
     workload_limit: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    avatar_url: Mapped[str] = mapped_column(String(512), default='', nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     memberships: Mapped[list[GroupMember]] = relationship('GroupMember', back_populates='user')
@@ -254,6 +256,7 @@ class SessionParticipant(Base):
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     last_activity_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     is_online: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     session: Mapped[VideoSession] = relationship('VideoSession', back_populates='participants')
     user: Mapped[User] = relationship('User', back_populates='session_participations')
@@ -348,6 +351,7 @@ class Task(Base):
         nullable=False,
     )
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_in_stage: Mapped[str] = mapped_column(String(50), default='', nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     group: Mapped[Group] = relationship('Group', back_populates='tasks')
@@ -410,6 +414,8 @@ class SessionStageState(Base):
         nullable=False,
     )
     stage_started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    stage_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    stage_durations: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     session: Mapped[VideoSession] = relationship('VideoSession')

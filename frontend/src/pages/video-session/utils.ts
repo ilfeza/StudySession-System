@@ -44,6 +44,14 @@ export function formatRoomName(roomName: string) {
   return roomName.replace(/[_-]+/g, ' ').trim();
 }
 
+export function formatShortName(fullName?: string | null) {
+  if (!fullName) {
+    return '';
+  }
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).join(' ');
+}
+
 export function optionalDeviceId(deviceId: string): ConstrainDOMString | undefined {
   if (!deviceId || deviceId === 'default') {
     return undefined;

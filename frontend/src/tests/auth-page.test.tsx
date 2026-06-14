@@ -11,7 +11,7 @@ vi.mock('../api/client', () => ({
   },
 }));
 
-test('страница авторизации показывает русские подписи и подсказку для admin', async () => {
+test('страница авторизации показывает описание платформы и форму входа', async () => {
   render(
     <BrowserRouter>
       <AuthProvider>
@@ -20,8 +20,9 @@ test('страница авторизации показывает русски�
     </BrowserRouter>,
   );
 
-  expect(await screen.findByText('Платформа StudySession')).toBeInTheDocument();
-  expect(screen.getByText('Вход в рабочее пространство')).toBeInTheDocument();
-  expect(screen.getByText(/admin \/ admin/)).toBeInTheDocument();
+  expect(await screen.findByText('StudySession')).toBeInTheDocument();
+  expect(screen.getByText(/Учитесь вместе/i)).toBeInTheDocument();
+  expect(screen.getByText('Видеосессии')).toBeInTheDocument();
+  expect(screen.queryByText(/admin \/ admin/i)).not.toBeInTheDocument();
   expect(screen.getByRole('textbox', { name: 'Логин или email' })).toBeInTheDocument();
 });

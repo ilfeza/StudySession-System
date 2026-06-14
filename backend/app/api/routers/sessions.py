@@ -1,9 +1,11 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import ensure_group_member, ensure_session_member, get_current_user
+from app.api.deps import can_control_session_stage, ensure_group_member, ensure_session_member, get_current_user, get_session_or_404
 from app.db.session import get_db
-from app.models import Group, GroupMember, SessionSummary, UserRole, VideoSession
+from app.models import Group, GroupMember, SessionSummary, UserRole, VideoSession, SessionParticipant, SessionTaskStatus, Task, User
 from app.schemas import (
     LivekitTokenResponse,
     SessionParticipantRead,
@@ -70,7 +72,7 @@ def create_session(payload: VideoSessionCreate, db: Session = Depends(get_db), u
         payload.group_id,
         payload.title,
         payload.description,
-        payload.starts_at,
+        payload.starts_at or datetime.utcnow(),
         user.id,
         payload.template_key,
     )
@@ -82,6 +84,21 @@ def list_group_sessions(group_id: int, db: Session = Depends(get_db), user=Depen
     ensure_group_member(group_id, user, db)
     sessions = SessionService(db).list_group_sessions(group_id)
     return [VideoSessionRead.model_validate(item) for item in sessions]
+
+
+@router.delete('/{session_id}')
+def delete_session(session_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    session = get_session_or_404(session_id, db)
+    group = db.get(Group, session.group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail='Группа не найдена.')
+    if group.owner_id != user.id and user.role != UserRole.admin:
+        raise HTTPException(status_code=403, detail='Удалять сессии может только создатель группы.')
+    try:
+        SessionService(db).delete_session(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {'message': 'Сессия удалена.'}
 
 
 @router.get('/{session_id}', response_model=VideoSessionRoomRead)
@@ -99,6 +116,7 @@ def session_detail(session_id: int, db: Session = Depends(get_db), user=Depends(
         ends_at=session.ends_at,
         is_active=session.is_active,
         livekit_room=session.livekit_room,
+        created_by_id=session.created_by_id,
     )
 
 
@@ -112,30 +130,18 @@ def livekit_token(session_id: int, db: Session = Depends(get_db), user=Depends(g
     service = SessionService(db)
     token = service.create_livekit_token(session.livekit_room, user.id, user.full_name)
     service.touch_participant(session_id, user.id)
-    can_control_stage = False
-    if user.role == UserRole.admin or session.created_by_id == user.id:
-        can_control_stage = True
-    else:
-        group = db.get(Group, session.group_id)
-        if group and group.owner_id == user.id:
-            can_control_stage = True
-        else:
-            membership = (
-                db.query(GroupMember)
-                .filter(
-                    GroupMember.group_id == session.group_id,
-                    GroupMember.user_id == user.id,
-                    GroupMember.can_moderate.is_(True),
-                )
-                .first()
-            )
-            can_control_stage = membership is not None
-
+    participant = (
+        db.query(SessionParticipant)
+        .filter(SessionParticipant.session_id == session_id, SessionParticipant.user_id == user.id)
+        .first()
+    )
+    if participant and participant.is_blocked:
+        raise HTTPException(status_code=403, detail='Вы заблокированы в этой сессии.')
     return LivekitTokenResponse(
         room_name=session.livekit_room,
         participant_name=user.full_name,
         token=token,
-        can_control_stage=can_control_stage,
+        can_control_stage=can_control_session_stage(session, user, db),
     )
 
 
@@ -155,12 +161,54 @@ def session_participants(session_id: int, db: Session = Depends(get_db), user=De
             id=participant_user.id,
             full_name=participant_user.full_name,
             is_online=participant.is_online,
+            is_blocked=participant.is_blocked,
             can_moderate=participant_user.role == UserRole.admin
             or participant_user.id == session.created_by_id
             or participant_user.id in moderators,
         )
         for participant, participant_user in rows
     ]
+
+
+@router.post('/{session_id}/participants/{user_id}/block')
+def block_session_participant(
+    session_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    session = ensure_session_member(session_id, user, db)
+    if user.role != UserRole.admin and session.created_by_id != user.id:
+        raise HTTPException(status_code=403, detail='Блокировать участников может только создатель сессии.')
+    if user_id == session.created_by_id:
+        raise HTTPException(status_code=400, detail='Нельзя заблокировать создателя сессии.')
+
+    participant = (
+        db.query(SessionParticipant)
+        .filter(SessionParticipant.session_id == session_id, SessionParticipant.user_id == user_id)
+        .first()
+    )
+    if not participant:
+        raise HTTPException(status_code=404, detail='Участник не найден в этой сессии.')
+
+    participant.is_blocked = True
+    participant.is_online = False
+
+    active_tasks = (
+        db.query(Task)
+        .filter(
+            Task.session_id == session_id,
+            Task.assignee_id == user_id,
+            Task.status.in_([SessionTaskStatus.assigned, SessionTaskStatus.in_progress, SessionTaskStatus.blocked]),
+        )
+        .all()
+    )
+    for task in active_tasks:
+        task.assignee_id = None
+        task.status = SessionTaskStatus.backlog
+
+    db.commit()
+    return {'message': 'Участник заблокирован в сессии.'}
 
 
 @router.get('/{session_id}/dashboard')

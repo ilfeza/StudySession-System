@@ -170,6 +170,7 @@ class AssignmentService:
             .filter(
                 SessionParticipant.session_id == session_id,
                 SessionParticipant.is_online.is_(True),
+                SessionParticipant.is_blocked.is_(False),
                 User.is_active.is_(True),
             )
         )

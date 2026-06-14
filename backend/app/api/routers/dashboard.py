@@ -16,6 +16,7 @@ def _to_feed_item(row) -> AnnouncementFeedItem:
         group_id=row.group_id,
         group_name=row.group.name,
         author_name=row.author.full_name,
+        author_avatar_url=row.author.avatar_url or '',
         body=row.body,
         created_at=row.created_at,
     )

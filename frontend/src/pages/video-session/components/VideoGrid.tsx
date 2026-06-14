@@ -8,7 +8,7 @@ import { Track } from 'livekit-client';
 
 import { ParticipantTile } from './ParticipantTile';
 
-type ParticipantTaskMap = Record<number, { title: string; description: string; status: string } | undefined>;
+type ParticipantTaskMap = Record<number, { title: string; description: string; status: string; deadline?: string | null } | undefined>;
 
 function resolveGrid(count: number) {
   if (count <= 1) return { columns: 'minmax(0, 1fr)', rows: 'minmax(0, 1fr)', justifyItems: 'center' } as const;
@@ -57,16 +57,17 @@ export function VideoGrid({
   const grid = resolveGrid(count);
 
   return (
-    <Box sx={{ height: '100%', width: '100%', position: 'relative' }}>
+    <Box sx={{ height: '100%', width: '100%', position: 'relative', minHeight: 0, overflow: 'hidden' }}>
       <Box
         sx={{
           display: 'grid',
-          gap: { xs: 1.25, md: 1.75 },
-          px: { xs: 2, md: 3 },
-          py: { xs: 2, md: 3 },
+          gap: { xs: 1, md: 1.25 },
+          px: { xs: 1.5, md: 2 },
+          py: { xs: 1.5, md: 2 },
           width: '100%',
           height: '100%',
           minHeight: 0,
+          overflow: 'hidden',
           gridTemplateColumns: grid.columns,
           gridTemplateRows: grid.rows,
           alignContent: count === 1 ? 'center' : 'stretch',

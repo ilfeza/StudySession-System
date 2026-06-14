@@ -8,6 +8,7 @@ from app.schemas import AssignmentRead, TaskCreate, TaskRead, TaskUpdate
 from app.services.assignment_service import AssignmentService
 from app.services.task_service import TaskService
 from app.websocket.manager import tasks_manager
+from app.websocket.stage import broadcast_session_stage, broadcast_session_stage_if_changed
 
 router = APIRouter()
 
@@ -31,6 +32,7 @@ def _task_read(task: Task, service: TaskService) -> TaskRead:
         created_by={'id': task.creator.id, 'full_name': task.creator.full_name} if task.creator else None,
         assignee={'id': task.assignee.id, 'full_name': task.assignee.full_name} if task.assignee else None,
         workflow_stage=workflow_stage,
+        created_in_stage=task.created_in_stage or workflow_stage,
         assignment_status=assignment_status,
     )
 
@@ -40,9 +42,10 @@ async def create_task(payload: TaskCreate, db: Session = Depends(get_db), user=D
     service = TaskService(db)
     if payload.room_id is not None:
         session = ensure_session_member(payload.room_id, user, db)
-        task = service.create_session_task(session, user, payload.model_dump(exclude_unset=True))
+        task, stage_changed = service.create_session_task(session, user, payload.model_dump(exclude_unset=True))
         read = _task_read(task, service)
         await tasks_manager.broadcast(session.id, {'event': 'task_created', 'payload': read.model_dump(mode='json')})
+        await broadcast_session_stage_if_changed(session.id, db, stage_changed)
         return read
 
     if payload.group_id is None:
@@ -86,9 +89,10 @@ async def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(g
     service = TaskService(db)
     if task.session_id is not None:
         ensure_session_member(task.session_id, user, db)
-        updated = service.update_session_task(task_id, payload.model_dump(exclude_unset=True))
+        updated, stage_changed = service.update_session_task(task_id, payload.model_dump(exclude_unset=True))
         read = _task_read(updated, service)
         await tasks_manager.broadcast(task.session_id, {'event': 'task_updated', 'payload': read.model_dump(mode='json')})
+        await broadcast_session_stage_if_changed(task.session_id, db, stage_changed)
         return read
 
     ensure_moderator(task.group_id, user, db)
@@ -114,9 +118,25 @@ async def delete_task(task_id: int, db: Session = Depends(get_db), user=Depends(
     if not can_delete:
         raise HTTPException(status_code=403, detail='Удалять задачу может только создатель или модератор.')
 
-    deleted = TaskService(db).delete_session_task(task_id)
+    deleted, stage_changed = TaskService(db).delete_session_task(task_id)
     await tasks_manager.broadcast(session.id, {'event': 'task_deleted', 'payload': {'id': deleted.id}})
+    await broadcast_session_stage_if_changed(session.id, db, stage_changed)
     return {'message': 'Задача удалена.'}
+
+
+@router.post('/{task_id}/skip', response_model=TaskRead)
+async def skip_task(task_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    task = db.get(Task, task_id)
+    if not task or task.session_id is None:
+        raise HTTPException(status_code=404, detail='Задача не найдена.')
+
+    session = ensure_session_member(task.session_id, user, db)
+    service = TaskService(db)
+    updated, stage_changed = service.skip_session_task(task_id, user.id)
+    read = _task_read(updated, service)
+    await tasks_manager.broadcast(session.id, {'event': 'task_updated', 'payload': read.model_dump(mode='json')})
+    await broadcast_session_stage_if_changed(session.id, db, stage_changed)
+    return read
 
 
 @router.post('/reassign', response_model=list[TaskRead])

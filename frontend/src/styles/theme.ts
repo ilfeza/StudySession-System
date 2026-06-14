@@ -8,7 +8,7 @@ export function createAppTheme(mode: PaletteMode) {
     palette: {
       mode,
       primary: {
-        main: isDark ? '#f8fafc' : '#111827',
+        main: isDark ? '#93c5fd' : '#2563eb',
       },
       secondary: {
         main: isDark ? '#cbd5e1' : '#4b5563',
@@ -37,17 +37,18 @@ export function createAppTheme(mode: PaletteMode) {
     },
     typography: {
       fontFamily: '"Segoe UI", "Helvetica Neue", Arial, sans-serif',
-      h1: { fontSize: '2.5rem', fontWeight: 700, letterSpacing: '-0.04em' },
-      h2: { fontSize: '2rem', fontWeight: 700, letterSpacing: '-0.03em' },
-      h3: { fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.03em' },
-      h4: { fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' },
-      h5: { fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em' },
-      h6: { fontSize: '1rem', fontWeight: 700 },
-      subtitle1: { fontSize: '1rem', fontWeight: 600 },
-      subtitle2: { fontSize: '0.875rem', fontWeight: 600 },
-      body1: { fontSize: '0.95rem', lineHeight: 1.6 },
+      h1: { fontSize: '2.25rem', fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.2 },
+      h2: { fontSize: '1.875rem', fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.25 },
+      h3: { fontSize: '1.625rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.3 },
+      h4: { fontSize: '1.375rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.35 },
+      h5: { fontSize: '1.125rem', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.4 },
+      h6: { fontSize: '1rem', fontWeight: 600, lineHeight: 1.45 },
+      subtitle1: { fontSize: '0.9375rem', fontWeight: 600, lineHeight: 1.5 },
+      subtitle2: { fontSize: '0.875rem', fontWeight: 600, lineHeight: 1.5 },
+      body1: { fontSize: '0.9375rem', lineHeight: 1.6 },
       body2: { fontSize: '0.875rem', lineHeight: 1.55 },
-      button: { fontSize: '0.9rem', fontWeight: 600, textTransform: 'none' },
+      caption: { fontSize: '0.8125rem', lineHeight: 1.45 },
+      button: { fontSize: '0.9375rem', fontWeight: 600, textTransform: 'none', lineHeight: 1.2 },
     },
     components: {
       MuiCssBaseline: {
@@ -92,36 +93,57 @@ export function createAppTheme(mode: PaletteMode) {
       MuiButton: {
         defaultProps: {
           disableElevation: true,
+          size: 'medium',
         },
         styleOverrides: {
           root: {
             minHeight: 44,
+            minWidth: 44,
             borderRadius: 8,
             paddingInline: 16,
             paddingBlock: 0,
             boxSizing: 'border-box',
+            fontSize: '0.9375rem',
+            fontWeight: 600,
           },
           contained: {
-            backgroundColor: isDark ? '#f8fafc' : '#111827',
-            color: isDark ? '#0f172a' : '#ffffff',
+            backgroundColor: isDark ? '#2563eb' : '#2563eb',
+            color: '#ffffff',
+            border: '1px solid transparent',
             '&:hover': {
-              backgroundColor: isDark ? '#e2e8f0' : '#1f2937',
+              backgroundColor: isDark ? '#1d4ed8' : '#1d4ed8',
             },
           },
           outlined: {
             borderWidth: 1,
-            borderColor: isDark ? '#334155' : '#d1d5db',
-            color: isDark ? '#f8fafc' : '#111827',
+            borderColor: 'transparent',
+            color: isDark ? '#e2e8f0' : '#374151',
+            backgroundColor: isDark ? alpha('#ffffff', 0.04) : alpha('#2563eb', 0.04),
             '&:hover': {
-              borderWidth: 1,
-              borderColor: isDark ? '#475569' : '#9ca3af',
-              backgroundColor: alpha(isDark ? '#f8fafc' : '#111827', 0.03),
+              borderColor: isDark ? alpha('#93c5fd', 0.45) : alpha('#2563eb', 0.35),
+              backgroundColor: isDark ? alpha('#ffffff', 0.08) : alpha('#2563eb', 0.08),
+            },
+          },
+          outlinedError: {
+            borderColor: 'transparent',
+            '&:hover': {
+              borderColor: alpha('#ef4444', 0.45),
             },
           },
           text: {
             '&:hover': {
               backgroundColor: alpha(isDark ? '#f8fafc' : '#111827', 0.04),
             },
+          },
+          sizeSmall: {
+            minHeight: 44,
+            paddingInline: 16,
+            fontSize: '0.9375rem',
+          },
+          sizeLarge: {
+            minHeight: 44,
+            paddingInline: 16,
+            fontSize: '0.9375rem',
           },
         },
       },
@@ -132,6 +154,7 @@ export function createAppTheme(mode: PaletteMode) {
             backgroundColor: isDark ? '#172033' : '#f3f4f6',
             color: isDark ? '#e2e8f0' : '#374151',
             border: `1px solid ${isDark ? '#243041' : '#e5e7eb'}`,
+            fontSize: '0.8125rem',
           },
         },
       },
@@ -140,6 +163,7 @@ export function createAppTheme(mode: PaletteMode) {
           root: {
             borderRadius: 8,
             backgroundColor: isDark ? '#0f172a' : '#ffffff',
+            minHeight: 44,
             '& fieldset': {
               borderColor: isDark ? '#334155' : '#d1d5db',
             },
@@ -147,13 +171,35 @@ export function createAppTheme(mode: PaletteMode) {
               borderColor: isDark ? '#475569' : '#9ca3af',
             },
             '&.Mui-focused fieldset': {
-              borderColor: isDark ? '#f8fafc' : '#111827',
+              borderColor: isDark ? '#f8fafc' : '#2563eb',
               borderWidth: 1,
             },
           },
           input: {
+            padding: '11px 14px',
+            boxSizing: 'border-box',
+            height: '44px',
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: '0.9375rem',
+          },
+          inputMultiline: {
+            height: 'auto',
+            minHeight: '88px',
+            alignItems: 'flex-start',
             paddingTop: 12,
             paddingBottom: 12,
+          },
+        },
+      },
+      MuiInputLabel: {
+        styleOverrides: {
+          root: {
+            fontSize: '0.9375rem',
+            transform: 'translate(14px, 12px) scale(1)',
+            '&.MuiInputLabel-shrink': {
+              transform: 'translate(14px, -9px) scale(0.75)',
+            },
           },
         },
       },
@@ -171,7 +217,7 @@ export function createAppTheme(mode: PaletteMode) {
           indicator: {
             height: 2,
             borderRadius: 999,
-            backgroundColor: isDark ? '#f8fafc' : '#111827',
+            backgroundColor: isDark ? '#f8fafc' : '#2563eb',
           },
         },
       },
@@ -183,6 +229,8 @@ export function createAppTheme(mode: PaletteMode) {
             paddingInline: 16,
             paddingBlock: 0,
             boxSizing: 'border-box',
+            fontSize: '0.9375rem',
+            fontWeight: 600,
           },
         },
       },
@@ -190,6 +238,59 @@ export function createAppTheme(mode: PaletteMode) {
         styleOverrides: {
           root: {
             borderRadius: 8,
+            fontSize: '0.9375rem',
+          },
+          standardInfo: {
+            backgroundColor: isDark ? '#172033' : undefined,
+          },
+        },
+      },
+      MuiDrawer: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: isDark ? '#111827' : '#ffffff',
+          },
+        },
+      },
+      MuiToggleButtonGroup: {
+        styleOverrides: {
+          root: {
+            backgroundColor: isDark ? '#0f172a' : '#f9fafb',
+          },
+        },
+      },
+      MuiToggleButton: {
+        styleOverrides: {
+          root: {
+            color: isDark ? '#94a3b8' : '#6b7280',
+            minHeight: 44,
+            fontSize: '0.9375rem',
+            '&.Mui-selected': {
+              backgroundColor: isDark ? '#1e293b' : '#ffffff',
+              color: isDark ? '#f8fafc' : '#111827',
+            },
+          },
+        },
+      },
+      MuiListItemButton: {
+        styleOverrides: {
+          root: {
+            minHeight: 44,
+            borderRadius: 8,
+            '&.Mui-selected': {
+              backgroundColor: isDark ? alpha('#2563eb', 0.22) : alpha('#2563eb', 0.1),
+            },
+          },
+        },
+      },
+      MuiListItemText: {
+        styleOverrides: {
+          primary: {
+            fontSize: '0.9375rem',
+            fontWeight: 600,
+          },
+          secondary: {
+            fontSize: '0.8125rem',
           },
         },
       },

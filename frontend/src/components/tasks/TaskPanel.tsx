@@ -261,7 +261,7 @@ export function TaskPanel({
 
   return (
     <>
-      <Paper sx={{ p: { xs: 2, md: fullscreen ? 2.5 : 2 }, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2, borderRadius: 0, border: 'none', backgroundColor: 'transparent', boxShadow: 'none' }}>
+      <Paper sx={{ p: { xs: 2, md: fullscreen ? 2.5 : 2 }, height: fullscreen ? '100%' : 'auto', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 2, borderRadius: 0, border: 'none', backgroundColor: 'transparent', boxShadow: 'none' }}>
         <BoardHeader
           query={query}
           assigneeFilter={assigneeFilter}
@@ -296,8 +296,8 @@ export function TaskPanel({
             </Stack>
           </Paper>
         ) : (
-          <Stack sx={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'hidden' }}>
-            <Stack direction="row" spacing={1.5} sx={{ minWidth: 'max-content', flex: 1 }}>
+          <Stack sx={{ flex: 1, minHeight: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}>
+            <Stack direction="row" spacing={1.5} sx={{ minWidth: 'max-content', height: '100%', alignItems: 'stretch' }}>
               {columnConfig.map((column) => {
                 const columnTasks = tasksByStatus[column.status];
                 return (

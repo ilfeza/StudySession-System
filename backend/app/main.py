@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
+from app.api.deps import can_control_session_stage
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.security import decode_token, hash_password
@@ -597,7 +598,7 @@ async def widgets_ws(websocket: WebSocket, session_id: int):
     await websocket.send_json({'event': 'pomodoro_state', 'payload': pomodoro_service.build_snapshot(pomodoro_state)})
 
     stage_service = SessionStageService(db)
-    stage_state = stage_service.sync_stage_for_session(session_id)
+    stage_state, _ = stage_service.sync_stage_for_session(session_id)
     await websocket.send_json({'event': 'stage_state', 'payload': stage_service.build_snapshot(stage_state)})
 
     try:
@@ -611,23 +612,9 @@ async def widgets_ws(websocket: WebSocket, session_id: int):
 
             if event == 'stage_set':
                 requested = str(payload.get('stage', '')).strip()
-                can_control = False
-                if user.role == UserRole.admin or session.created_by_id == user.id:
-                    can_control = True
-                else:
-                    membership = (
-                        db.query(GroupMember)
-                        .filter(
-                            GroupMember.group_id == session.group_id,
-                            GroupMember.user_id == user.id,
-                            GroupMember.can_moderate.is_(True),
-                        )
-                        .first()
-                    )
-                    can_control = membership is not None
 
-                if not can_control:
-                    await websocket.send_json({'event': 'stage_error', 'payload': {'message': 'Переключать этап может только модератор.'}})
+                if not can_control_session_stage(session, user, db):
+                    await websocket.send_json({'event': 'stage_error', 'payload': {'message': 'Переключать этап могут только модераторы сессии.'}})
                     continue
 
                 try:

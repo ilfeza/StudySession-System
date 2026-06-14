@@ -3,7 +3,10 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { AppLayout } from './components/AppLayout';
 import { useAuth } from './context/AuthContext';
-import { AdminPage } from './pages/AdminPage';
+import { AdminLayout } from './pages/admin/AdminLayout';
+import { AdminGroupsPage } from './pages/admin/AdminGroupsPage';
+import { AdminOverviewPage } from './pages/admin/AdminOverviewPage';
+import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GroupsPage } from './pages/GroupsPage';
@@ -53,7 +56,12 @@ export default function App() {
         )}
       >
         <Route path="/" element={<HomeRedirect />} />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<AdminOverviewPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="groups" element={<AdminGroupsPage />} />
+        </Route>
         <Route
           path="/dashboard"
           element={(
@@ -79,7 +87,7 @@ export default function App() {
           )}
         />
         <Route
-          path="/profile"
+          path="/profile/*"
           element={(
             <RestrictedForAnalyst>
               <ProfilePage />

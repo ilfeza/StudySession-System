@@ -4,12 +4,17 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ViewKanbanRoundedIcon from '@mui/icons-material/ViewKanbanRounded';
 import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import TimelapseRoundedIcon from '@mui/icons-material/TimelapseRounded';
-import { useParticipants } from '@livekit/components-react';
+import StopCircleRoundedIcon from '@mui/icons-material/StopCircleRounded';
+import { useParticipants, useRoomContext } from '@livekit/components-react';
 import {
   Alert,
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   Drawer,
   Paper,
@@ -26,26 +31,31 @@ import type { AudioCaptureOptions, VideoCaptureOptions } from 'livekit-client';
 
 import { api } from '../../api/client';
 import { ChatPanel } from '../../components/ChatPanel';
-import { assignNextSessionTask } from '../../api/sessionTasks';
+import { assignNextSessionTask, blockSessionParticipant, skipSessionTask } from '../../api/sessionTasks';
 import { useSessionTasks } from '../../components/tasks/useSessionTasks';
+import { useAuth } from '../../context/AuthContext';
 import { formatMMSS } from '../../components/widgets/pomodoroTime';
 import { useWidgetsSocket } from '../../components/widgets/useWidgetsSocket';
 import type { ChatMessage, SessionDashboardSnapshot, SessionTask, VideoSessionRoom } from '../../types';
 import type { SessionStage } from '../../types/pomodoro';
+import { taskStatusLabels } from './sessionIntelligence';
+import { DeviceSettingsPanel } from './components/DeviceSettingsPanel';
 import { KanbanBoard } from './components/KanbanBoard';
+import { ParticipantsPanel } from './components/ParticipantsPanel';
+import { SessionStageDurationLabel, SessionStageSwitcher } from './components/SessionStageSwitcher';
 import { VideoControls } from './components/VideoControls';
 import { VideoGrid } from './components/VideoGrid';
-import { formatRoomName } from './utils';
+import { formatRoomName, formatShortName } from './utils';
 import type { JoinPreferences } from './types';
 
 type SessionTab = 'video' | 'kanban' | 'stages';
+type VideoSidePanel = 'chat' | 'participants' | 'settings';
 
 const stageSteps = [
   { key: 'task_creation', label: 'Подготовка' },
   { key: 'task_distribution', label: 'Обсуждение' },
   { key: 'execution', label: 'Выполнение' },
-  { key: 'review', label: 'Проверка' },
-  { key: 'completion', label: 'Завершение' },
+  { key: 'review', label: 'Завершение' },
 ] as const;
 
 function resolveStageIndex(stage: SessionStage | null, dashboard: SessionDashboardSnapshot | null) {
@@ -95,20 +105,21 @@ export function MeetingRoomScreen({
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
+  const room = useRoomContext();
+  const { user } = useAuth();
   const participants = useParticipants();
   const controller = useSessionTasks(sessionId);
-  const { state: widgetsState } = useWidgetsSocket(sessionId);
+  const { state: widgetsState, send: sendWidgetEvent, clearError } = useWidgetsSocket(sessionId);
   const [sessionRoom, setSessionRoom] = useState<VideoSessionRoom | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [activeTab, setActiveTab] = useState<SessionTab>('video');
-  const [selectedParticipantId, setSelectedParticipantId] = useState<number | null>(null);
   const [selectedTask, setSelectedTask] = useState<SessionTask | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [sidePanel, setSidePanel] = useState<VideoSidePanel | null>(null);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
-  const [deviceSettingsOpen, setDeviceSettingsOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [serverOffsetMs, setServerOffsetMs] = useState<number | null>(null);
   const [notification, setNotification] = useState('');
+  const [endSessionOpen, setEndSessionOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -140,7 +151,6 @@ export function MeetingRoomScreen({
   const dashboard = controller.dashboard;
   const participantsView = dashboard?.participants ?? [];
   const history = dashboard?.history ?? [];
-  const lastAssignment = dashboard?.last_assignment ?? null;
   const liveParticipantNames = useMemo(
     () => participants.map((participant) => participant.name?.trim().toLowerCase()).filter(Boolean) as string[],
     [participants],
@@ -148,11 +158,6 @@ export function MeetingRoomScreen({
   const stageColor = stageChipColor(stage);
 
   const activeTasks = controller.tasks.filter((task) => task.status !== 'done');
-  const currentTask =
-    selectedTask ??
-    (selectedParticipantId
-      ? activeTasks.find((task) => task.assignee_id === selectedParticipantId) ?? null
-      : activeTasks[0] ?? null);
 
   const participantTasks = useMemo(() => {
     return controller.tasks.reduce<Record<number, SessionTask>>((acc, task) => {
@@ -167,29 +172,79 @@ export function MeetingRoomScreen({
   const stageColumns = useMemo(() => {
     const columns = stageSteps.map((stageStep) => ({ ...stageStep, tasks: [] as SessionTask[] }));
     for (const task of controller.tasks) {
-      if (task.status !== 'done') continue;
-      const idx = columns.findIndex((column) => column.key === task.workflow_stage);
-      const targetIndex = idx >= 0 ? idx : columns.length - 1;
+      const stageKey = task.created_in_stage || task.workflow_stage || 'task_creation';
+      const idx = columns.findIndex((column) => column.key === stageKey);
+      const targetIndex = idx >= 0 ? idx : 0;
       columns[targetIndex].tasks.push(task);
     }
     return columns;
   }, [controller.tasks]);
 
-  async function handleNextTask(preferredUserId?: number) {
-    const updated = await assignNextSessionTask(sessionId, preferredUserId);
-    if (!updated) {
-      setNotification('Нет доступных задач для назначения');
+  const stageDurations = useMemo(() => {
+    const snapshot = widgetsState.stage;
+    if (!snapshot) {
+      return {} as Record<string, number>;
+    }
+
+    const durations = { ...(snapshot.stage_durations ?? {}) };
+    if (!stage) {
+      return durations;
+    }
+
+    const snapshotElapsed = snapshot.timing.elapsed_s ?? 0;
+    durations[stage] = Math.max(0, (durations[stage] ?? 0) - snapshotElapsed + stageElapsed);
+    return durations;
+  }, [stage, stageElapsed, widgetsState.stage]);
+
+  function handleStageChange(nextStage: SessionStage) {
+    if (!canControlStage) {
       return;
     }
-    setNotification(`Задача #${updated.id} назначена ${updated.assignee?.full_name ?? 'участнику'}`);
+    clearError();
+    sendWidgetEvent({ event: 'stage_set', payload: { stage: nextStage } });
+  }
+
+  async function handleCompleteAndNext(task: SessionTask) {
+    const assigneeId = task.assignee_id ?? undefined;
+    await controller.patchTask(task.id, { status: 'done' });
+    const updated = await assignNextSessionTask(sessionId, assigneeId);
+    if (!updated) {
+      setSelectedTask(null);
+      setNotification('Задача завершена. Новых задач для назначения нет.');
+      return;
+    }
+    setSelectedTask(updated);
+    setNotification(`Задача завершена. Следующая: «${updated.title}»`);
   }
 
   async function handleCompleteTask(task: SessionTask | null) {
     if (!task) return;
     await controller.patchTask(task.id, { status: 'done' });
     setSelectedTask(null);
-    setNotification(`Задача #${task.id} завершена`);
+    setNotification(`Задача «${task.title}» завершена`);
   }
+
+  async function handleSkipTask(task: SessionTask | null) {
+    if (!task) return;
+    await skipSessionTask(task.id);
+    await controller.refreshDashboard();
+    setSelectedTask(null);
+    setNotification(`Задача «${task.title}» пропущена. Надёжность участника снижена.`);
+  }
+
+  async function handleBlockParticipant(participantId: number) {
+    await blockSessionParticipant(sessionId, participantId);
+    await controller.refreshParticipants();
+    await controller.refreshDashboard();
+    setNotification('Участник заблокирован в сессии');
+  }
+
+  function handleEndSession() {
+    setEndSessionOpen(false);
+    void room.disconnect();
+  }
+
+  const isSessionCreator = sessionRoom?.created_by_id === user?.id;
 
   const tabs: Array<{ value: SessionTab; label: string; icon: ReactElement }> = [
     { value: 'video', label: 'Видеосессия', icon: <VideocamRoundedIcon fontSize="small" /> },
@@ -197,10 +252,17 @@ export function MeetingRoomScreen({
     { value: 'stages', label: 'Этапы', icon: <AssignmentTurnedInRoundedIcon fontSize="small" /> },
   ];
 
+  function toggleSidePanel(panel: VideoSidePanel) {
+    setSidePanel((prev) => (prev === panel ? null : panel));
+  }
+
+  const sidePanelOpen = sidePanel !== null && !isMobile;
+
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#eef2f7', p: { xs: 1, md: 2 } }}>
-      <Stack spacing={1.25} sx={{ minHeight: 'calc(100vh - 16px)' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', bgcolor: '#eef2f7', p: { xs: 1, md: 2 } }}>
+      <Stack spacing={1.25} sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {mediaWarning ? <Alert severity="warning" onClose={onDismissMediaWarning}>{mediaWarning}</Alert> : null}
+        {widgetsState.error ? <Alert severity="error" onClose={clearError}>{widgetsState.error}</Alert> : null}
 
         <Paper sx={{ px: 2, py: 1.25, borderRadius: 3, zIndex: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} flexWrap="wrap">
@@ -217,9 +279,19 @@ export function MeetingRoomScreen({
                 </Typography>
               </Box>
             </Stack>
-            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="flex-end">
-              <Chip icon={<TimelapseRoundedIcon />} label={stage ? `${stageSteps[stageIndex].label} · ${formatMMSS(stageElapsed)}` : 'Этап не определён'} sx={{ bgcolor: stageColor.bg, color: stageColor.fg }} />
+            <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="flex-end" alignItems="center">
               <Chip label="Аналитика" icon={<InsightsRoundedIcon fontSize="small" />} onClick={() => setAnalyticsOpen(true)} clickable />
+              {isSessionCreator ? (
+                <Chip
+                  label="Завершить сессию"
+                  icon={<StopCircleRoundedIcon fontSize="small" />}
+                  onClick={() => setEndSessionOpen(true)}
+                  clickable
+                  sx={{ borderColor: 'error.main', color: 'error.main' }}
+                  variant="outlined"
+                />
+              ) : null}
+              <Chip icon={<TimelapseRoundedIcon />} label={stage ? `${stageSteps[stageIndex].label} · ${formatMMSS(stageElapsed)}` : 'Этап не определён'} sx={{ bgcolor: stageColor.bg, color: stageColor.fg }} />
             </Stack>
           </Stack>
         </Paper>
@@ -244,70 +316,63 @@ export function MeetingRoomScreen({
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: chatOpen && !isMobile ? 'minmax(0, 1fr) 360px' : 'minmax(0, 1fr)',
+                  gridTemplateColumns: sidePanelOpen ? 'minmax(0, 1fr) 360px' : 'minmax(0, 1fr)',
                   height: '100%',
                   minHeight: 0,
                 }}
               >
-                <Box sx={{ position: 'relative', minHeight: 0, overflow: 'hidden' }}>
-                  <VideoGrid
-                    chatOpen={false}
-                    participantTasks={Object.fromEntries(
-                      Object.entries(participantTasks).map(([userId, task]) => [
-                        Number(userId),
-                        task ? { title: task.title, description: task.description, status: task.status } : undefined,
-                      ]),
-                    )}
-                    onTaskClick={(userId) => {
-                      setSelectedParticipantId(userId);
-                      const nextTask = activeTasks.find((task) => task.assignee_id === userId) ?? null;
-                      setSelectedTask(nextTask);
-                    }}
-                  />
-
-                  <Box sx={{ position: 'absolute', left: 16, bottom: 96, zIndex: 2, pointerEvents: 'auto', maxWidth: 360, width: 'calc(100% - 32px)' }}>
-                    <Paper
-                      onClick={() => setSelectedTask(currentTask)}
-                      sx={{
-                        p: 1.5,
-                        borderRadius: 3,
-                        cursor: 'pointer',
-                        bgcolor: alpha('#020617', 0.7),
-                        color: '#fff',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        boxShadow: '0 16px 44px rgba(2,6,23,0.28)',
+                <Box sx={{ position: 'relative', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                    <VideoGrid
+                      chatOpen={sidePanelOpen}
+                      participantTasks={Object.fromEntries(
+                        Object.entries(participantTasks).map(([userId, task]) => [
+                          Number(userId),
+                          task ? { title: task.title, description: task.description, status: task.status, deadline: task.deadline ?? null } : undefined,
+                        ]),
+                      )}
+                      onTaskClick={(userId) => {
+                        const nextTask = activeTasks.find((task) => task.assignee_id === userId) ?? null;
+                        setSelectedTask(nextTask);
                       }}
-                    >
-                      <Stack spacing={0.75}>
-                        <Typography variant="caption" sx={{ color: alpha('#fff', 0.75) }}>
-                          Текущая задача
-                        </Typography>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          {currentTask?.title ?? 'Пока нет активной задачи'}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: alpha('#fff', 0.82), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {currentTask?.assignee?.full_name ? `Исполнитель: ${currentTask.assignee.full_name}` : 'Исполнитель не назначен'}
-                        </Typography>
-                      </Stack>
-                    </Paper>
+                    />
                   </Box>
 
-                  <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, p: 1.5, zIndex: 2 }}>
+                  <Box sx={{ flexShrink: 0, p: 1.5, zIndex: 2 }}>
                     <VideoControls
                       microphoneCaptureOptions={microphoneCaptureOptions}
                       cameraCaptureOptions={cameraCaptureOptions}
                       onTrackDeviceError={onTrackDeviceError}
-                      onParticipantsClick={() => setSelectedParticipantId(participantsView[0]?.id ?? null)}
-                      onChatClick={() => setChatOpen((prev) => !prev)}
-                      onSettingsClick={() => setDeviceSettingsOpen(true)}
-                      isChatOpen={chatOpen}
+                      onParticipantsClick={() => toggleSidePanel('participants')}
+                      onChatClick={() => toggleSidePanel('chat')}
+                      onSettingsClick={() => toggleSidePanel('settings')}
+                      activeSidePanel={sidePanel}
                     />
                   </Box>
                 </Box>
 
-                {chatOpen && !isMobile ? (
-                  <Box sx={{ minHeight: 0, borderLeft: '1px solid rgba(255,255,255,0.08)', bgcolor: '#ffffff' }}>
-                    <ChatPanel sessionId={sessionId} variant="session" showHeader />
+                {sidePanelOpen ? (
+                  <Box sx={{ minHeight: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(255,255,255,0.08)', bgcolor: '#0f172a' }}>
+                    {sidePanel === 'chat' ? <ChatPanel sessionId={sessionId} variant="session" showHeader /> : null}
+                    {sidePanel === 'participants' ? (
+                      <ParticipantsPanel
+                        participants={participantsView}
+                        participantTasks={participantTasks}
+                        canBlockParticipants={isSessionCreator}
+                        currentUserId={user?.id}
+                        onParticipantClick={(participantId) => {
+                          const nextTask = activeTasks.find((task) => task.assignee_id === participantId) ?? null;
+                          setSelectedTask(nextTask);
+                        }}
+                        onBlockParticipant={(participantId) => void handleBlockParticipant(participantId)}
+                      />
+                    ) : null}
+                    {sidePanel === 'settings' ? (
+                      <DeviceSettingsPanel
+                        joinPreferences={joinPreferences}
+                        onJoinPreferencesChange={onJoinPreferencesChange}
+                      />
+                    ) : null}
                   </Box>
                 ) : null}
               </Box>
@@ -336,22 +401,31 @@ export function MeetingRoomScreen({
                     <Typography variant="h5" sx={{ fontWeight: 800 }}>
                       Этапы сессии
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Здесь видно, какие задачи были завершены на каждом этапе.
-                    </Typography>
                   </Box>
+                  <SessionStageSwitcher currentStage={stage} onStageChange={handleStageChange} disabled={!canControlStage} />
                   <Box
                     sx={{
                       display: 'grid',
                       gap: 1.5,
-                      gridTemplateColumns: { xs: '1fr', md: 'repeat(5, minmax(0, 1fr))' },
+                      gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(0, 1fr))' },
                       alignItems: 'start',
                     }}
                   >
                     {stageColumns.map((column) => (
-                      <Paper key={column.key} sx={{ p: 1.5, borderRadius: 3, bgcolor: '#f8fafc', minHeight: 220 }}>
+                      <Paper
+                        key={column.key}
+                        sx={{
+                          p: 1.5,
+                          borderRadius: 3,
+                          bgcolor: stage === column.key ? alpha('#2563eb', 0.06) : '#f8fafc',
+                          minHeight: 220,
+                          border: '1px solid',
+                          borderColor: stage === column.key ? alpha('#2563eb', 0.24) : 'transparent',
+                        }}
+                      >
                         <Stack spacing={1.25}>
                           <Box>
+                            <SessionStageDurationLabel seconds={stageDurations[column.key] ?? 0} />
                             <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                               {column.label}
                             </Typography>
@@ -371,13 +445,13 @@ export function MeetingRoomScreen({
                                     {task.title}
                                   </Typography>
                                   <Typography variant="caption" color="text.secondary">
-                                    {task.assignee?.full_name ?? 'Без исполнителя'}
+                                    {task.assignee?.full_name ?? 'Без исполнителя'} · {taskStatusLabels[task.status]}
                                   </Typography>
                                 </Stack>
                               </Paper>
                             )) : (
                               <Typography variant="body2" color="text.secondary">
-                                Пока нет завершённых задач
+                                Пока нет задач
                               </Typography>
                             )}
                           </Stack>
@@ -410,9 +484,6 @@ export function MeetingRoomScreen({
           <Stack spacing={2}>
             <Box>
               <Typography variant="h6">Задача</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Подробности задачи и кнопка для выдачи следующей.
-              </Typography>
             </Box>
             <Divider />
             {selectedTask ? (
@@ -423,7 +494,7 @@ export function MeetingRoomScreen({
                 <Typography variant="body2" color="text.secondary">
                   {selectedTask.description || 'Описание отсутствует.'}
                 </Typography>
-                <TextField label="Статус" value={selectedTask.status} InputProps={{ readOnly: true }} fullWidth />
+                <TextField label="Статус" value={taskStatusLabels[selectedTask.status]} InputProps={{ readOnly: true }} fullWidth />
                 <TextField
                   label="Исполнитель"
                   value={selectedTask.assignee?.full_name ?? 'Не назначен'}
@@ -431,17 +502,26 @@ export function MeetingRoomScreen({
                   fullWidth
                 />
                 <Stack spacing={1}>
-                  {selectedTask.assignee_id ? (
-                    <Button variant="contained" onClick={() => void handleNextTask(selectedTask.assignee_id ?? undefined)}>
-                      Получить следующую задачу для {selectedTask.assignee?.full_name ?? 'участника'}
-                    </Button>
-                  ) : (
-                    <Button variant="contained" onClick={() => void handleNextTask()}>
-                      Получить следующую задачу
-                    </Button>
-                  )}
-                  <Button variant="outlined" onClick={() => void handleCompleteTask(selectedTask)}>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={() => void handleCompleteAndNext(selectedTask)}
+                    sx={{ py: 1.1, textTransform: 'none' }}
+                  >
+                    <Stack spacing={0.25}>
+                      <span>Получить следующую задачу</span>
+                      {selectedTask.assignee?.full_name ? (
+                        <Typography component="span" variant="caption" sx={{ opacity: 0.9 }}>
+                          {formatShortName(selectedTask.assignee.full_name)}
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                  </Button>
+                  <Button variant="outlined" fullWidth onClick={() => void handleCompleteTask(selectedTask)}>
                     Завершить задачу
+                  </Button>
+                  <Button variant="outlined" color="warning" fullWidth onClick={() => void handleSkipTask(selectedTask)} disabled={selectedTask.assignee_id !== user?.id}>
+                    Пропустить
                   </Button>
                 </Stack>
               </Stack>
@@ -468,29 +548,9 @@ export function MeetingRoomScreen({
           <Stack spacing={2}>
             <Box>
               <Typography variant="h6">Аналитика</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Команда, история, последнее назначение и нагрузка участников.
-              </Typography>
             </Box>
             <Divider />
             <Stack spacing={1.5}>
-              <Typography variant="subtitle2">Последнее назначение</Typography>
-              {lastAssignment ? (
-                <Paper sx={{ p: 1.5, borderRadius: 2, bgcolor: '#f8fafc' }}>
-                  <Stack spacing={0.75}>
-                    <Typography variant="body2">Задача: {lastAssignment.task_title}</Typography>
-                    <Typography variant="body2">Назначена: {lastAssignment.assignee_name}</Typography>
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                      {lastAssignment.reasons.map((reason) => (
-                        <Chip key={reason} size="small" label={reason} />
-                      ))}
-                    </Stack>
-                  </Stack>
-                </Paper>
-              ) : (
-                <Typography variant="body2" color="text.secondary">Пока нет данных.</Typography>
-              )}
-
               <Typography variant="subtitle2">Команда</Typography>
               <Stack spacing={1}>
                 {participantsView.map((participant) => (
@@ -523,7 +583,30 @@ export function MeetingRoomScreen({
                 ))}
               </Stack>
 
-              <Typography variant="subtitle2">История распределения</Typography>
+              <Typography variant="subtitle2">Надёжность участников</Typography>
+              <Stack spacing={1}>
+                {participantsView.map((participant) => (
+                  <Paper key={`reliability-${participant.id}`} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#f8fafc' }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{participant.full_name}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {Math.round(participant.reliability_score * 100)}%
+                      </Typography>
+                    </Stack>
+                    <Box sx={{ mt: 1, height: 8, borderRadius: 999, bgcolor: alpha('#16a34a', 0.12), overflow: 'hidden' }}>
+                      <Box
+                        sx={{
+                          width: `${Math.min(100, Math.round(participant.reliability_score * 100))}%`,
+                          height: '100%',
+                          bgcolor: participant.reliability_score >= 0.7 ? '#16a34a' : participant.reliability_score >= 0.5 ? '#f59e0b' : '#dc2626',
+                        }}
+                      />
+                    </Box>
+                  </Paper>
+                ))}
+              </Stack>
+
+              <Typography variant="subtitle2">История</Typography>
               <Stack spacing={1}>
                 {history.length ? history.map((item) => (
                   <Paper key={`${item.timestamp}-${item.task_id}`} sx={{ p: 1.25, borderRadius: 2, bgcolor: '#f8fafc' }}>
@@ -539,20 +622,20 @@ export function MeetingRoomScreen({
         </Box>
       </Drawer>
 
-      <Drawer
-        anchor="right"
-        open={deviceSettingsOpen}
-        onClose={() => setDeviceSettingsOpen(false)}
-        PaperProps={{ sx: { width: 'min(100vw - 16px, 380px)', m: 1, borderRadius: 3, zIndex: 1405, overflowY: 'auto' } }}
-      >
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6">Настройки устройств</Typography>
-          <Stack spacing={1.5} sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={() => onJoinPreferencesChange({ audioEnabled: !joinPreferences.audioEnabled })}>Микрофон: {joinPreferences.audioEnabled ? 'вкл' : 'выкл'}</Button>
-            <Button variant="outlined" onClick={() => onJoinPreferencesChange({ videoEnabled: !joinPreferences.videoEnabled })}>Камера: {joinPreferences.videoEnabled ? 'вкл' : 'выкл'}</Button>
-          </Stack>
-        </Box>
-      </Drawer>
+      <Dialog open={endSessionOpen} onClose={() => setEndSessionOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Завершить сессию?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Сессия будет завершена для всех участников. После этого откроется форма итогов.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setEndSessionOpen(false)}>Отмена</Button>
+          <Button variant="contained" color="error" onClick={handleEndSession}>
+            Завершить сессию
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Alert
         severity="success"

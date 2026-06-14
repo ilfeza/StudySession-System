@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import { AdminPage } from '../pages/AdminPage';
+import { AdminOverviewPage } from '../pages/admin/AdminOverviewPage';
 
 const mockUseAuth = vi.fn();
 const mockGet = vi.fn();
@@ -18,7 +18,7 @@ vi.mock('../api/client', () => ({
   },
 }));
 
-test('аналитик видит только аналитическую часть админ-панели', async () => {
+test('аналитик видит аналитику на странице обзора', async () => {
   mockUseAuth.mockReturnValue({ user: { role: 'analyst' } });
   mockGet.mockImplementation((url: string) => {
     if (url === '/admin/analytics') {
@@ -43,11 +43,9 @@ test('аналитик видит только аналитическую час
 
   render(
     <MemoryRouter>
-      <AdminPage />
+      <AdminOverviewPage />
     </MemoryRouter>,
   );
 
-  expect(await screen.findByText('Аналитика платформы')).toBeInTheDocument();
-  expect(screen.queryByText('Назначить аналитика')).not.toBeInTheDocument();
-  await waitFor(() => expect(screen.getByText('Сводная аналитика')).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText('Распределение ролей')).toBeInTheDocument());
 });

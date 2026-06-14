@@ -66,6 +66,11 @@ export function VideoSessionPage() {
     setInMeetingMediaWarning(message || 'Не удалось получить доступ к устройству.');
   }, []);
 
+  const handleSummarySaved = useCallback(() => {
+    setSummaryOpen(false);
+    navigate('/dashboard');
+  }, [navigate]);
+
   const microphoneCaptureDefaults = useMemo((): AudioCaptureOptions => {
     const device = optionalDeviceId(joinConfig?.audioDeviceId ?? '');
     return {
@@ -162,50 +167,58 @@ export function VideoSessionPage() {
     return null;
   }
 
-  return joinConfig ? (
-    <LiveKitRoom
-      token={tokenData.token}
-      serverUrl={getLivekitServerUrl()}
-      connect
-      audio={liveKitAudio}
-      video={liveKitVideo}
-      options={roomOptions}
-      onConnected={handleLiveKitConnected}
-      onDisconnected={handleLiveKitDisconnected}
-      onError={handleLiveKitError}
-      onMediaDeviceFailure={handleMediaDeviceFailure}
-    >
-      <MeetingRoomScreen
-        sessionId={Number(sessionId)}
-        roomName={tokenData.room_name}
-        participantName={tokenData.participant_name}
-        canControlStage={Boolean(tokenData.can_control_stage)}
-        onBack={() => setJoinConfig(null)}
-        mediaWarning={inMeetingMediaWarning}
-        onDismissMediaWarning={() => setInMeetingMediaWarning('')}
-        microphoneCaptureOptions={microphoneCaptureDefaults}
-        cameraCaptureOptions={cameraCaptureDefaults}
-        joinPreferences={preferences}
-        onJoinPreferencesChange={(patch) => setPreferences((prev) => ({ ...prev, ...patch }))}
-        onTrackDeviceError={handleTrackDeviceError}
-      />
-    </LiveKitRoom>
-  ) : (
+  return (
     <>
-      <DeviceSetupScreen
-        tokenData={tokenData}
-        roomError={roomError}
-        preferences={preferences}
-        onPreferencesChange={(patch) => setPreferences((prev) => ({ ...prev, ...patch }))}
-        onJoin={(config) => {
-          setRoomError('');
-          setInMeetingMediaWarning('');
-          setSummaryOpen(false);
-          setJoinConfig(config);
-        }}
-        onBack={() => navigate('/groups')}
+      {joinConfig ? (
+        <LiveKitRoom
+          token={tokenData.token}
+          serverUrl={getLivekitServerUrl()}
+          connect
+          audio={liveKitAudio}
+          video={liveKitVideo}
+          options={roomOptions}
+          onConnected={handleLiveKitConnected}
+          onDisconnected={handleLiveKitDisconnected}
+          onError={handleLiveKitError}
+          onMediaDeviceFailure={handleMediaDeviceFailure}
+        >
+          <MeetingRoomScreen
+            sessionId={Number(sessionId)}
+            roomName={tokenData.room_name}
+            participantName={tokenData.participant_name}
+            canControlStage={Boolean(tokenData.can_control_stage)}
+            onBack={() => setJoinConfig(null)}
+            mediaWarning={inMeetingMediaWarning}
+            onDismissMediaWarning={() => setInMeetingMediaWarning('')}
+            microphoneCaptureOptions={microphoneCaptureDefaults}
+            cameraCaptureOptions={cameraCaptureDefaults}
+            joinPreferences={preferences}
+            onJoinPreferencesChange={(patch) => setPreferences((prev) => ({ ...prev, ...patch }))}
+            onTrackDeviceError={handleTrackDeviceError}
+          />
+        </LiveKitRoom>
+      ) : (
+        <DeviceSetupScreen
+          tokenData={tokenData}
+          roomError={roomError}
+          preferences={preferences}
+          onPreferencesChange={(patch) => setPreferences((prev) => ({ ...prev, ...patch }))}
+          onJoin={(config) => {
+            setRoomError('');
+            setInMeetingMediaWarning('');
+            setSummaryOpen(false);
+            setJoinConfig(config);
+          }}
+          onBack={() => navigate('/groups')}
+        />
+      )}
+
+      <SessionSummaryDialog
+        open={summaryOpen}
+        sessionId={Number(sessionId)}
+        onClose={() => setSummaryOpen(false)}
+        onSaved={handleSummarySaved}
       />
-      <SessionSummaryDialog open={summaryOpen} sessionId={Number(sessionId)} autoFocusReminder onClose={() => setSummaryOpen(false)} />
     </>
   );
 }

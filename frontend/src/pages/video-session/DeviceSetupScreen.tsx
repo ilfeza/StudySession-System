@@ -9,7 +9,7 @@ import { useMediaDevices } from '@livekit/components-react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { JoinPreferences, TokenResponse } from './types';
-import { formatRoomName, getDeviceLabel, getMediaAccessIssue } from './utils';
+import { getDeviceLabel, getMediaAccessIssue } from './utils';
 
 function usePreviewMediaStream(preferences: JoinPreferences, canUseMediaApi: boolean) {
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -200,13 +200,14 @@ export function DeviceSetupScreen({
 
   const hasLiveVideo = Boolean(previewStream?.getVideoTracks().some((track) => track.readyState === 'live'));
   const canShowVideo = preferences.videoEnabled && !videoError && hasLiveVideo;
+  const showCameraOffState = !preferences.videoEnabled || Boolean(videoError);
   const videoStatus = !preferences.videoEnabled
-    ? 'Камера выключена перед входом'
+    ? 'Камера выключена'
     : videoError
       ? 'Нет доступа к камере'
       : 'Камера готова';
   const audioStatus = !preferences.audioEnabled
-    ? 'Микрофон выключен перед входом'
+    ? 'Микрофон выключен'
     : audioError
       ? 'Нет доступа к микрофону'
       : 'Микрофон готов';
@@ -238,7 +239,7 @@ export function DeviceSetupScreen({
           sx={{
             display: 'grid',
             gap: 2.5,
-            alignItems: 'stretch',
+            alignItems: 'start',
             gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.45fr) minmax(320px, 420px)' },
           }}
         >
@@ -246,40 +247,44 @@ export function DeviceSetupScreen({
             <Paper
               sx={{
                 position: 'relative',
-                minHeight: { xs: 340, md: 520 },
+                height: { xs: 340, md: 520 },
+                maxHeight: { xs: 340, md: 520 },
                 overflow: 'hidden',
                 borderRadius: 3,
-                backgroundColor: '#ffffff',
+                backgroundColor: '#020617',
                 border: '1px solid #e5e7eb',
                 boxShadow: '0 24px 60px rgba(15, 23, 42, 0.08)',
-                '& .device-setup-preview-video': {
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  transform: 'scaleX(-1)',
-                  display: 'block',
-                  backgroundColor: '#020617',
-                },
               }}
             >
               {canShowVideo ? (
-                <video
+                <Box
+                  component="video"
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="device-setup-preview-video"
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: 'scaleX(-1)',
+                    display: 'block',
+                  }}
                 />
-              ) : (
+              ) : showCameraOffState ? (
                 <Stack
                   spacing={2}
                   alignItems="center"
                   justifyContent="center"
                   sx={{
-                    height: '100%',
+                    position: 'absolute',
+                    inset: 0,
                     px: 3,
                     textAlign: 'center',
                     color: '#0f172a',
+                    bgcolor: '#f8fafc',
                   }}
                 >
                   <Box
@@ -289,27 +294,17 @@ export function DeviceSetupScreen({
                       display: 'grid',
                       placeItems: 'center',
                       borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
-                      color: '#2563eb',
+                      bgcolor: alpha('#dc2626', 0.1),
+                      color: '#dc2626',
                     }}
                   >
                     <VideocamOffRoundedIcon sx={{ fontSize: 42 }} />
                   </Box>
                   <Typography variant="h5" fontWeight={800}>Проверка устройств</Typography>
-                  <Typography sx={{ maxWidth: 420, color: 'text.secondary' }}>
-                    Перед входом можно настроить камеру и микрофон. Сначала проверяете устройства, потом входите в комнату.
-                  </Typography>
                 </Stack>
+              ) : (
+                <Box sx={{ position: 'absolute', inset: 0, bgcolor: '#020617' }} />
               )}
-
-              <Box
-                sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(15, 23, 42, 0.08) 100%)',
-                  pointerEvents: 'none',
-                }}
-              />
 
               <Stack
                 spacing={0.5}
@@ -332,9 +327,6 @@ export function DeviceSetupScreen({
                 <Typography variant="h6" fontWeight={800}>
                   {tokenData.participant_name}
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  {formatRoomName(tokenData.room_name)}
-                </Typography>
               </Stack>
             </Paper>
 
@@ -347,8 +339,8 @@ export function DeviceSetupScreen({
                 sx={{
                   py: 1.3,
                   borderRadius: 2.5,
-                  color: preferences.audioEnabled ? '#ffffff' : '#0f172a',
-                  borderColor: '#d1d5db',
+                  color: preferences.audioEnabled ? '#ffffff' : '#dc2626',
+                  borderColor: preferences.audioEnabled ? undefined : '#fca5a5',
                   background: preferences.audioEnabled
                     ? 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)'
                     : '#ffffff',
@@ -364,8 +356,8 @@ export function DeviceSetupScreen({
                 sx={{
                   py: 1.3,
                   borderRadius: 2.5,
-                  color: preferences.videoEnabled ? '#ffffff' : '#0f172a',
-                  borderColor: '#d1d5db',
+                  color: preferences.videoEnabled ? '#ffffff' : '#dc2626',
+                  borderColor: preferences.videoEnabled ? undefined : '#fca5a5',
                   background: preferences.videoEnabled
                     ? 'linear-gradient(135deg, #3384ff 0%, #1d6eff 100%)'
                     : '#ffffff',
@@ -387,17 +379,9 @@ export function DeviceSetupScreen({
             }}
           >
             <Stack spacing={2}>
-              <Box>
-                <Typography variant="overline" sx={{ letterSpacing: 1.2, color: 'text.secondary' }}>
-                  Настройка
-                </Typography>
-                <Typography variant="h5" fontWeight={800}>
-                  Камера и микрофон
-                </Typography>
-                <Typography sx={{ mt: 0.75, color: 'text.secondary' }}>
-                  Выберите устройства перед подключением к видеосессии.
-                </Typography>
-              </Box>
+              <Typography variant="h5" fontWeight={800}>
+                Камера и микрофон
+              </Typography>
 
               <Stack spacing={1.25}>
                 <TextField
@@ -482,16 +466,20 @@ export function DeviceSetupScreen({
                 <Stack spacing={1.4}>
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Typography fontWeight={700}>Статус камеры</Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    <Typography variant="body2" sx={{ color: preferences.videoEnabled && !videoError ? 'text.secondary' : '#dc2626' }}>
                       {videoStatus}
                     </Typography>
                   </Stack>
 
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Typography fontWeight={700}>Статус микрофона</Typography>
-                    <MicrophoneMeter level={micLevel} enabled={preferences.audioEnabled && !audioError} />
+                    {preferences.audioEnabled && !audioError ? (
+                      <MicrophoneMeter level={micLevel} enabled />
+                    ) : (
+                      <MicOffRoundedIcon sx={{ color: '#dc2626' }} />
+                    )}
                   </Stack>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  <Typography variant="body2" sx={{ color: preferences.audioEnabled && !audioError ? 'text.secondary' : '#dc2626' }}>
                     {audioStatus}
                   </Typography>
                 </Stack>

@@ -82,15 +82,13 @@ def ensure_session_member(session_id: int, user: User, db: Session) -> VideoSess
     return session
 
 
-def ensure_session_moderator(session_id: int, user: User, db: Session) -> VideoSession:
-    session = get_session_or_404(session_id, db)
-
+def can_control_session_stage(session: VideoSession, user: User, db: Session) -> bool:
     if user.role == UserRole.admin or session.created_by_id == user.id:
-        return session
+        return True
 
     group = db.get(Group, session.group_id)
     if group and group.owner_id == user.id:
-        return session
+        return True
 
     membership = (
         db.query(GroupMember)
@@ -101,7 +99,13 @@ def ensure_session_moderator(session_id: int, user: User, db: Session) -> VideoS
         )
         .first()
     )
-    if not membership:
+    return membership is not None
+
+
+def ensure_session_moderator(session_id: int, user: User, db: Session) -> VideoSession:
+    session = get_session_or_404(session_id, db)
+
+    if not can_control_session_stage(session, user, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Нужны права модератора.')
 
     return session

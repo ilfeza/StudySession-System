@@ -52,6 +52,7 @@ def _directory_user(db: Session, user: User) -> UserDirectoryRead:
         id=user.id,
         full_name=user.full_name,
         role=user.role,
+        skills=[skill for skill in user.skills.split(',') if skill],
         is_online=current_status != 'Свободен',
         current_status=current_status,
     )
@@ -138,6 +139,7 @@ def create_friend_request(payload: FriendshipCreate, db: Session = Depends(get_d
     if not other_user:
         raise HTTPException(status_code=404, detail='Пользователь не найден.')
 
+    now = datetime.utcnow()
     existing = (
         db.query(Friendship)
         .options(joinedload(Friendship.requester), joinedload(Friendship.addressee))
@@ -150,9 +152,24 @@ def create_friend_request(payload: FriendshipCreate, db: Session = Depends(get_d
         .first()
     )
     if existing:
+        if existing.status == FriendshipStatus.accepted:
+            return _friendship_read(db, existing, user.id)
+        if existing.status == FriendshipStatus.pending:
+            if existing.addressee_id == user.id:
+                existing.status = FriendshipStatus.accepted
+                existing.updated_at = now
+                db.commit()
+                db.refresh(existing)
+                existing = (
+                    db.query(Friendship)
+                    .options(joinedload(Friendship.requester), joinedload(Friendship.addressee))
+                    .filter(Friendship.id == existing.id)
+                    .first()
+                )
+                return _friendship_read(db, existing, user.id)
+            return _friendship_read(db, existing, user.id)
         raise HTTPException(status_code=400, detail='Связь с этим пользователем уже существует.')
 
-    now = datetime.utcnow()
     friendship = Friendship(
         requester_id=user.id,
         addressee_id=payload.user_id,
@@ -203,6 +220,15 @@ def update_friendship(
         if user.id not in {friendship.requester_id, friendship.addressee_id}:
             raise HTTPException(status_code=403, detail='Недостаточно прав для блокировки.')
         friendship.status = FriendshipStatus.blocked
+    elif payload.action == 'remove':
+        if user.id not in {friendship.requester_id, friendship.addressee_id}:
+            raise HTTPException(status_code=403, detail='Недостаточно прав для удаления из друзей.')
+        if friendship.status != FriendshipStatus.accepted:
+            raise HTTPException(status_code=400, detail='Удалить можно только принятую дружбу.')
+        snapshot = _friendship_read(db, friendship, user.id)
+        db.delete(friendship)
+        db.commit()
+        return snapshot
 
     friendship.updated_at = datetime.utcnow()
     db.commit()
@@ -225,7 +251,7 @@ def list_conversations(db: Session = Depends(get_db), user=Depends(get_current_u
             joinedload(Conversation.members).joinedload(ConversationMember.user),
             joinedload(Conversation.messages),
         )
-        .filter(ConversationMember.user_id == user.id)
+        .filter(ConversationMember.user_id == user.id, Conversation.kind == ConversationKind.direct)
         .order_by(Conversation.created_at.desc())
         .all()
     )

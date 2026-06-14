@@ -85,7 +85,7 @@ export function VideoControls({
   onParticipantsClick,
   onChatClick,
   onSettingsClick,
-  isChatOpen,
+  activeSidePanel,
 }: {
   microphoneCaptureOptions: AudioCaptureOptions;
   cameraCaptureOptions: VideoCaptureOptions;
@@ -93,7 +93,7 @@ export function VideoControls({
   onParticipantsClick: () => void;
   onChatClick: () => void;
   onSettingsClick: () => void;
-  isChatOpen: boolean;
+  activeSidePanel: 'chat' | 'participants' | 'settings' | null;
 }) {
   const microphone = useTrackToggle({
     source: Track.Source.Microphone,
@@ -111,16 +111,10 @@ export function VideoControls({
   return (
     <Box
       sx={{
-        position: 'absolute',
-        left: '50%',
-        bottom: '16px',
-        transform: 'translateX(-50%)',
-        zIndex: 2,
         display: 'flex',
         justifyContent: 'center',
         width: '100%',
         maxWidth: '100%',
-        px: '16px',
         pointerEvents: 'none',
         boxSizing: 'border-box',
       }}
@@ -157,13 +151,31 @@ export function VideoControls({
         <ControlButton label="Показать экран" size={36} active={screenShare.enabled} secondary buttonProps={screenShare.buttonProps}>
           <PresentToAllRoundedIcon />
         </ControlButton>
-        <ControlButton label={isChatOpen ? 'Скрыть чат' : 'Открыть чат'} size={36} active={isChatOpen} secondary buttonProps={{ onClick: onChatClick }}>
+        <ControlButton
+          label={activeSidePanel === 'chat' ? 'Скрыть чат' : 'Открыть чат'}
+          size={36}
+          active={activeSidePanel === 'chat'}
+          secondary
+          buttonProps={{ onClick: onChatClick }}
+        >
           <ChatBubbleOutlineRoundedIcon />
         </ControlButton>
-        <ControlButton label="Участники" size={36} secondary buttonProps={{ onClick: onParticipantsClick }}>
+        <ControlButton
+          label={activeSidePanel === 'participants' ? 'Скрыть участников' : 'Участники'}
+          size={36}
+          active={activeSidePanel === 'participants'}
+          secondary
+          buttonProps={{ onClick: onParticipantsClick }}
+        >
           <PeopleOutlineRoundedIcon />
         </ControlButton>
-        <ControlButton label="Настройки устройств" size={36} secondary buttonProps={{ onClick: onSettingsClick }}>
+        <ControlButton
+          label={activeSidePanel === 'settings' ? 'Скрыть настройки' : 'Настройки устройств'}
+          size={36}
+          active={activeSidePanel === 'settings'}
+          secondary
+          buttonProps={{ onClick: onSettingsClick }}
+        >
           <SettingsRoundedIcon />
         </ControlButton>
         <ControlButton label="Выйти из звонка" size={46} danger buttonProps={leaveButtonProps}>

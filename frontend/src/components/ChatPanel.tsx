@@ -1,11 +1,47 @@
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import { Alert, Box, IconButton, Paper, Stack, TextField, Typography } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { Alert, Box, IconButton, Stack, TextField, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { ChatMessage } from '../types';
+import { SessionSidePanel, sessionPanelFieldSx } from '../pages/video-session/components/SessionSidePanel';
+
+function formatMessageTime(value: string) {
+  return new Date(value).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatMessageDateLabel(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return 'Сегодня';
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return 'Вчера';
+  }
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function groupMessagesByDate(messages: ChatMessage[]) {
+  const groups: Array<{ dateKey: string; label: string; items: ChatMessage[] }> = [];
+
+  for (const message of messages) {
+    const dateKey = new Date(message.created_at).toDateString();
+    const last = groups[groups.length - 1];
+    if (!last || last.dateKey !== dateKey) {
+      groups.push({ dateKey, label: formatMessageDateLabel(message.created_at), items: [message] });
+    } else {
+      last.items.push(message);
+    }
+  }
+
+  return groups;
+}
 
 interface Props {
   sessionId: number;
@@ -22,6 +58,7 @@ export function ChatPanel({
   messages: externalMessages,
   onMessagesChange,
 }: Props) {
+  const theme = useTheme();
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>(externalMessages ?? []);
   const [value, setValue] = useState('');
@@ -87,24 +124,121 @@ export function ChatPanel({
       .catch((err: Error) => setError(err.message || 'Не удалось отправить сообщение.'));
   }
 
+  if (isSessionVariant) {
+    return (
+      <SessionSidePanel
+        title="Чат встречи"
+        subtitle="Сообщения команды в одном потоке."
+        contentRef={listRef}
+        footer={(
+          <Stack direction="row" spacing={1} alignItems="flex-end">
+            <TextField
+              fullWidth
+              size="small"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  send();
+                }
+              }}
+              multiline
+              maxRows={3}
+              placeholder="Напишите сообщение..."
+              sx={sessionPanelFieldSx}
+            />
+            <IconButton
+              color="primary"
+              onClick={send}
+              sx={{
+                width: 40,
+                height: 40,
+                flexShrink: 0,
+                border: '1px solid',
+                borderColor: alpha('#ffffff', 0.14),
+                borderRadius: 2,
+                backgroundColor: alpha('#2563eb', 0.88),
+                color: '#ffffff',
+                '&:hover': { backgroundColor: '#1d4ed8' },
+              }}
+            >
+              <SendRoundedIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        )}
+      >
+        {error ? <Alert severity="warning" sx={{ mb: 1 }}>{error}</Alert> : null}
+        <Stack spacing={1.5}>
+          {groupMessagesByDate(messages).map((group) => (
+            <Stack key={group.dateKey} spacing={1}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    px: 1.25,
+                    py: 0.35,
+                    borderRadius: 999,
+                    color: alpha('#f8fafc', 0.65),
+                    bgcolor: alpha('#ffffff', 0.08),
+                  }}
+                >
+                  {group.label}
+                </Typography>
+              </Box>
+              {group.items.map((msg) => {
+                const isOwn = (msg.sender_id != null && user?.id === msg.sender_id) || user?.full_name === msg.sender_name;
+
+                return (
+                  <Stack key={msg.id} alignItems={isOwn ? 'flex-end' : 'flex-start'}>
+                    <Box
+                      sx={{
+                        maxWidth: '85%',
+                        px: 1.25,
+                        py: 0.75,
+                        borderRadius: 2,
+                        backgroundColor: isOwn ? alpha('#2563eb', 0.22) : alpha('#ffffff', 0.08),
+                        color: '#f8fafc',
+                      }}
+                    >
+                      <Typography variant="caption" fontWeight={700} sx={{ color: alpha('#f8fafc', 0.62), display: 'block', mb: 0.25 }}>
+                        {isOwn ? 'Вы' : msg.sender_name}
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="flex-end" useFlexGap>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'inherit', flex: 1 }}>
+                          {msg.message}
+                        </Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.55, whiteSpace: 'nowrap', fontSize: '0.72rem', lineHeight: 1.2, pb: 0.1 }}>
+                          {formatMessageTime(msg.created_at)}
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  </Stack>
+                );
+              })}
+            </Stack>
+          ))}
+        </Stack>
+      </SessionSidePanel>
+    );
+  }
+
   return (
-    <Paper
+    <Box
       sx={{
-        p: isSessionVariant ? 0 : 3,
+        p: 3,
         height: '100%',
-        minHeight: isSessionVariant ? 0 : 420,
+        minHeight: 420,
         display: 'flex',
         flexDirection: 'column',
         gap: 1.5,
-        borderRadius: isSessionVariant ? 0 : 3,
-        border: 'none',
-        boxShadow: 'none',
-        backgroundColor: 'transparent',
+        borderRadius: 3,
+        bgcolor: 'background.paper',
       }}
     >
       {showHeader ? (
         <Stack spacing={0.5}>
-          <Typography variant="h6">{isSessionVariant ? 'Чат встречи' : 'Чат сессии'}</Typography>
+          <Typography variant="h6">Чат сессии</Typography>
           <Typography variant="body2" color="text.secondary">
             Сообщения команды в одном потоке.
           </Typography>
@@ -121,52 +255,68 @@ export function ChatPanel({
           overflowY: 'auto',
           border: '1px solid',
           borderColor: 'divider',
-          borderRadius: isSessionVariant ? 3 : 4,
+          borderRadius: 4,
           px: 1.5,
           py: 1.5,
           backgroundColor: '#f8fafc',
           boxShadow: 'inset 0 1px 2px rgba(15, 23, 42, 0.04)',
         }}
       >
-        <Stack spacing={1}>
-          {messages.map((msg) => {
-            const isOwn = (msg.sender_id != null && user?.id === msg.sender_id) || user?.full_name === msg.sender_name;
-
-            return (
-              <Stack key={msg.id} alignItems={isOwn ? 'flex-end' : 'flex-start'}>
-                <Box
+        <Stack spacing={1.5}>
+          {groupMessagesByDate(messages).map((group) => (
+            <Stack key={group.dateKey} spacing={1}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
                   sx={{
-                    maxWidth: '80%',
-                    p: 1.5,
-                    borderRadius: 3,
-                    backgroundColor: isOwn ? '#111827' : '#ffffff',
-                    color: isOwn ? '#ffffff' : '#111827',
-                    border: '1px solid',
-                    borderColor: isOwn ? '#111827' : 'divider',
-                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                    px: 1.25,
+                    py: 0.35,
+                    borderRadius: 999,
+                    bgcolor: alpha(theme.palette.text.primary, 0.06),
                   }}
                 >
-                  <Typography variant="caption" fontWeight={700} sx={{ color: isOwn ? 'rgba(255,255,255,0.72)' : 'text.secondary' }}>
-                    {isOwn ? 'Вы' : msg.sender_name}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap', color: 'inherit' }}>
-                    {msg.message}
-                  </Typography>
-                </Box>
-              </Stack>
-            );
-          })}
+                  {group.label}
+                </Typography>
+              </Box>
+              {group.items.map((msg) => {
+                const isOwn = (msg.sender_id != null && user?.id === msg.sender_id) || user?.full_name === msg.sender_name;
+
+                return (
+                  <Stack key={msg.id} alignItems={isOwn ? 'flex-end' : 'flex-start'}>
+                    <Box
+                      sx={{
+                        maxWidth: '80%',
+                        px: 1.25,
+                        py: 0.75,
+                        borderRadius: 2,
+                        bgcolor: isOwn
+                          ? alpha(theme.palette.primary.main, 0.12)
+                          : alpha(theme.palette.text.primary, 0.05),
+                        color: 'text.primary',
+                      }}
+                    >
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
+                        {isOwn ? 'Вы' : msg.sender_name}
+                      </Typography>
+                      <Stack direction="row" spacing={1} alignItems="flex-end" useFlexGap>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', flex: 1 }}>
+                          {msg.message}
+                        </Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.55, whiteSpace: 'nowrap', fontSize: '0.72rem', lineHeight: 1.2, pb: 0.1 }}>
+                          {formatMessageTime(msg.created_at)}
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  </Stack>
+                );
+              })}
+            </Stack>
+          ))}
         </Stack>
       </Box>
 
-      <Box
-        sx={{
-          flexShrink: 0,
-          pt: 1,
-          borderTop: '1px solid',
-          borderColor: isSessionVariant ? alpha('#cbd5e1', 0.7) : 'transparent',
-        }}
-      >
+      <Box sx={{ flexShrink: 0, pt: 1 }}>
         <Stack direction="row" spacing={1} alignItems="flex-end">
           <TextField
             fullWidth
@@ -182,6 +332,6 @@ export function ChatPanel({
           </IconButton>
         </Stack>
       </Box>
-    </Paper>
+    </Box>
   );
 }

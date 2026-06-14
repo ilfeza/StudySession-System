@@ -57,3 +57,12 @@ export async function assignNextSessionTask(sessionId: number, preferredUserId?:
   });
   return response.data;
 }
+
+export async function skipSessionTask(taskId: number) {
+  const response = await api.post<SessionTask>(`/tasks/${taskId}/skip`);
+  return response.data;
+}
+
+export async function blockSessionParticipant(sessionId: number, userId: number) {
+  await api.post(`/sessions/${sessionId}/participants/${userId}/block`);
+}

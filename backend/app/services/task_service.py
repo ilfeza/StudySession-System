@@ -27,7 +27,7 @@ class TaskService:
         assignment = self.assignment_service.assign_task(task)
         return task, assignment
 
-    def create_session_task(self, session: VideoSession, creator: User, payload: dict) -> Task:
+    def create_session_task(self, session: VideoSession, creator: User, payload: dict) -> tuple[Task, bool]:
         status_value = self._normalize_status(payload.get('status', SessionTaskStatus.backlog))
         assignee_id = payload.get('assignee_id')
         task = Task(
@@ -44,9 +44,11 @@ class TaskService:
             is_completed=status_value == SessionTaskStatus.done,
         )
         self._apply_session_workflow_rules(session.id, task, previous_status=None)
+        state = self.stage_service.get_or_create(session.id)
+        task.created_in_stage = state.current_stage.value
         created = self.repo.create_task(task)
-        self.stage_service.sync_stage_for_session(session.id)
-        return created
+        _, stage_changed = self.stage_service.sync_stage_for_session(session.id)
+        return created, stage_changed
 
     def list_tasks(self, group_id: int):
         return self.repo.list_group_tasks(group_id)
@@ -70,7 +72,7 @@ class TaskService:
         self.repo.db.refresh(task)
         return task
 
-    def update_session_task(self, task_id: int, payload: dict) -> Task:
+    def update_session_task(self, task_id: int, payload: dict) -> tuple[Task, bool]:
         task = self.repo.get_task(task_id)
         if not task or task.session_id is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Задача не найдена.')
@@ -85,17 +87,37 @@ class TaskService:
         self._apply_session_workflow_rules(task.session_id, task, previous_status=previous_status)
         self.repo.db.commit()
         self.repo.db.refresh(task)
-        self.stage_service.sync_stage_for_session(task.session_id)
-        return task
+        _, stage_changed = self.stage_service.sync_stage_for_session(task.session_id)
+        return task, stage_changed
 
-    def delete_session_task(self, task_id: int) -> Task:
+    def delete_session_task(self, task_id: int) -> tuple[Task, bool]:
         task = self.repo.get_task(task_id)
         if not task or task.session_id is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Задача не найдена.')
         session_id = task.session_id
         self.repo.delete_task(task)
-        self.stage_service.sync_stage_for_session(session_id)
-        return task
+        _, stage_changed = self.stage_service.sync_stage_for_session(session_id)
+        return task, stage_changed
+
+    def skip_session_task(self, task_id: int, user_id: int) -> tuple[Task, bool]:
+        task = self.repo.get_task(task_id)
+        if not task or task.session_id is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Задача не найдена.')
+        if task.status == SessionTaskStatus.done:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Задача уже завершена.')
+        if task.assignee_id != user_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Пропустить задачу может только её исполнитель.')
+
+        user = self.repo.db.get(User, user_id)
+        if user:
+            user.reliability_score = max(0.0, round(user.reliability_score - 0.08, 3))
+
+        task.assignee_id = None
+        task.status = SessionTaskStatus.backlog
+        self.repo.db.commit()
+        self.repo.db.refresh(task)
+        _, stage_changed = self.stage_service.sync_stage_for_session(task.session_id)
+        return task, stage_changed
 
     def build_assignment_metadata(self, task: Task) -> tuple[str, str]:
         if task.session_id is None:

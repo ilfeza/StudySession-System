@@ -1,6 +1,6 @@
 import secrets
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models import Group, GroupMember, GroupVisibility
 from app.repositories.group_repository import GroupRepository
@@ -72,6 +72,26 @@ class GroupService:
     def delete_group(self, group: Group) -> None:
         self.db.delete(group)
         self.db.commit()
+
+    def remove_member(self, group: Group, user_id: int, actor_id: int) -> None:
+        if group.owner_id != actor_id:
+            raise ValueError('Удалять участников может только создатель группы.')
+        if user_id == group.owner_id:
+            raise ValueError('Нельзя удалить создателя группы.')
+        membership = self.repo.get_member(group.id, user_id)
+        if not membership:
+            raise ValueError('Пользователь не состоит в этой группе.')
+        self.db.delete(membership)
+        self.db.commit()
+
+    def list_members(self, group_id: int) -> list[GroupMember]:
+        return (
+            self.db.query(GroupMember)
+            .options(joinedload(GroupMember.user))
+            .filter(GroupMember.group_id == group_id)
+            .order_by(GroupMember.joined_at.asc())
+            .all()
+        )
 
     def _generate_invite_key(self) -> str:
         while True:

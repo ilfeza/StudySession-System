@@ -1,15 +1,17 @@
 import MicOffRoundedIcon from '@mui/icons-material/MicOffRounded';
-import SignalCellularAltRoundedIcon from '@mui/icons-material/SignalCellularAltRounded';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import { Box, ButtonBase, Stack, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { ParticipantTile as LiveKitParticipantTile } from '@livekit/components-react';
-import type { ComponentProps } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
+
+import { formatCountdown } from '../../../components/tasks/deadlineField';
 
 type ParticipantTaskInfo = {
   title: string;
   description: string;
   status: string;
+  deadline?: string | null;
 } | null;
 
 export function ParticipantTile({
@@ -23,13 +25,29 @@ export function ParticipantTile({
   task?: ParticipantTaskInfo;
   onTaskClick?: () => void;
 }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!task?.deadline) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [task?.deadline]);
+
+  const countdownLabel = task?.deadline
+    ? formatCountdown(Math.floor((new Date(task.deadline).getTime() - nowMs) / 1000))
+    : null;
+  const countdownOverdue = task?.deadline ? new Date(task.deadline).getTime() < nowMs : false;
   return (
     <Box
       sx={{
         position: 'relative',
         width: '100%',
         maxWidth: single ? 'min(100%, 980px)' : '100%',
-        aspectRatio: '16 / 9',
+        height: single ? 'auto' : '100%',
+        minHeight: 0,
+        aspectRatio: single ? '16 / 9' : 'auto',
         overflow: 'hidden',
         borderRadius: 2,
         border: '1px solid',
@@ -104,11 +122,23 @@ export function ParticipantTile({
           }}
         >
           <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0, flexWrap: 'wrap' }}>
               <TaskAltRoundedIcon sx={{ color: '#f8fafc', fontSize: 18, flexShrink: 0 }} />
               <Typography variant="caption" sx={{ color: alpha('#ffffff', 0.72) }}>
                 Текущая задача
               </Typography>
+              {countdownLabel ? (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: countdownOverdue ? '#fca5a5' : '#86efac',
+                    fontWeight: 700,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {countdownLabel}
+                </Typography>
+              ) : null}
             </Stack>
             <Typography
               variant="body2"
@@ -127,30 +157,11 @@ export function ParticipantTile({
         </ButtonBase>
       ) : null}
 
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 12,
-          right: 12,
-          width: 32,
-          height: 32,
-          display: 'grid',
-          placeItems: 'center',
-          borderRadius: 1.5,
-          backgroundColor: alpha('#020617', 0.58),
-          color: '#f8fafc',
-          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.16)',
-          border: '1px solid rgba(255,255,255,0.12)',
-        }}
-      >
-        <SignalCellularAltRoundedIcon sx={{ fontSize: 18 }} />
-      </Box>
-
       {trackRef && 'publication' in trackRef && trackRef.publication?.isMuted ? (
         <Box
           sx={{
             position: 'absolute',
-            top: task ? 52 : 12,
+            top: 12,
             right: 12,
             width: 32,
             height: 32,

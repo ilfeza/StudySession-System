@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from livekit import api
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -39,6 +40,13 @@ class SessionService:
     def list_group_sessions(self, group_id: int):
         return self.repo.list_group_sessions(group_id)
 
+    def delete_session(self, session_id: int) -> None:
+        session = self.db.get(VideoSession, session_id)
+        if not session:
+            raise ValueError('Сессия не найдена.')
+        self.db.delete(session)
+        self.db.commit()
+
     def create_livekit_token(self, room_name: str, user_id: int, user_name: str) -> str:
         settings = get_settings()
         participant_identity = f'{user_id}-{uuid4().hex[:8]}'
@@ -54,6 +62,8 @@ class SessionService:
             .first()
         )
         if participant:
+            if participant.is_blocked:
+                raise HTTPException(status_code=403, detail='Вы заблокированы в этой сессии.')
             participant.last_activity_at = datetime.utcnow()
             participant.is_online = True
             self.db.commit()
@@ -62,7 +72,7 @@ class SessionService:
         return self.repo.upsert_participant(SessionParticipant(session_id=session_id, user_id=user_id))
 
     def save_message(self, session_id: int, sender_id: int, sender_name: str, message: str, task_id: int | None = None) -> ChatMessage:
-        stage_state = SessionStageService(self.db).sync_stage_for_session(session_id)
+        stage_state, _ = SessionStageService(self.db).sync_stage_for_session(session_id)
         model = ChatMessage(
             session_id=session_id,
             task_id=task_id,

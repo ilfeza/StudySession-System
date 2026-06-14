@@ -9,6 +9,7 @@ interface AuthContextShape {
   login: (email: string, password: string) => Promise<void>;
   register: (payload: { email: string; full_name: string; password: string; role: User['role']; skills: string[] }) => Promise<void>;
   updateProfile: (payload: { full_name?: string; email?: string; skills?: string[] }) => Promise<User>;
+  uploadAvatar: (file: File) => Promise<User>;
   logout: () => void;
 }
 
@@ -48,12 +49,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return response.data;
   }
 
+  async function uploadAvatar(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post<User>('/users/me/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    setUser(response.data);
+    return response.data;
+  }
+
   function logout() {
     localStorage.removeItem('access_token');
     setUser(null);
   }
 
-  const value = useMemo(() => ({ user, loading, login, register, updateProfile, logout }), [user, loading]);
+  const value = useMemo(() => ({ user, loading, login, register, updateProfile, uploadAvatar, logout }), [user, loading]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

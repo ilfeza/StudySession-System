@@ -5,6 +5,10 @@ import { GroupsPage } from '../pages/GroupsPage';
 
 const mockGet = vi.fn();
 
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 1, role: 'student', full_name: 'Тестовый пользователь' } }),
+}));
+
 vi.mock('../api/client', () => ({
   api: {
     get: (...args: unknown[]) => mockGet(...args),
@@ -56,8 +60,19 @@ test('страница групп показывает русскую навиг
     if (url === '/sessions/group/1') {
       return Promise.resolve({ data: [] });
     }
-    if (url === '/groups/1/history') {
-      return Promise.resolve({ data: [] });
+    if (url === '/groups/1/members') {
+      return Promise.resolve({
+        data: [
+          {
+            user_id: 1,
+            full_name: 'Тестовый пользователь',
+            email: 'test@example.com',
+            can_moderate: true,
+            is_owner: true,
+            joined_at: '2026-05-10T12:00:00Z',
+          },
+        ],
+      });
     }
     return Promise.resolve({ data: [] });
   });
@@ -71,5 +86,5 @@ test('страница групп показывает русскую навиг
   expect(await screen.findByText('Группы и сообщество')).toBeInTheDocument();
   expect(screen.getByText('Поиск')).toBeInTheDocument();
   await waitFor(() => expect(screen.getAllByText('Группа тестирования').length).toBeGreaterThan(0));
-  expect(screen.getByText('Ключ для приглашения: TEST01')).toBeInTheDocument();
+  expect(screen.queryByText(/Ключ для приглашения/i)).not.toBeInTheDocument();
 });

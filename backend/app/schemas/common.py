@@ -46,6 +46,7 @@ class UserRead(BaseModel):
     reliability_score: float
     workload_limit: int
     is_active: bool = True
+    avatar_url: str = ''
 
 
 class UserProfileUpdate(BaseModel):
@@ -60,6 +61,7 @@ class UserDirectoryRead(BaseModel):
     email: str = ''
     full_name: str
     role: UserRole
+    skills: list[str] = []
     is_online: bool = False
     current_status: str = ''
     is_active: bool = True
@@ -163,7 +165,7 @@ class FriendshipCreate(BaseModel):
 
 
 class FriendshipUpdate(BaseModel):
-    action: str = Field(pattern='^(accept|decline|block)$')
+    action: str = Field(pattern='^(accept|decline|block|remove)$')
 
 
 class FriendshipRead(BaseModel):
@@ -202,11 +204,21 @@ class GroupMemberAdd(BaseModel):
     can_moderate: bool = False
 
 
+class GroupMemberRead(BaseModel):
+    user_id: int
+    full_name: str
+    email: str
+    can_moderate: bool
+    is_owner: bool = False
+    joined_at: datetime
+
+
 class SessionParticipantRead(BaseModel):
     id: int
     full_name: str
     is_online: bool
     can_moderate: bool = False
+    is_blocked: bool = False
 
 
 class VideoSessionCreate(BaseModel):
@@ -214,7 +226,7 @@ class VideoSessionCreate(BaseModel):
     title: str
     description: str = ''
     template_key: str = ''
-    starts_at: datetime
+    starts_at: datetime | None = None
 
 
 class VideoSessionRead(BaseModel):
@@ -242,6 +254,7 @@ class VideoSessionRoomRead(BaseModel):
     ends_at: Optional[datetime] = None
     is_active: bool
     livekit_room: str
+    created_by_id: int
 
 
 class LivekitTokenResponse(BaseModel):
@@ -298,6 +311,7 @@ class TaskRead(BaseModel):
     created_by: Optional[TaskUserRead] = None
     assignee: Optional[TaskUserRead] = None
     workflow_stage: str = ''
+    created_in_stage: str = ''
     assignment_status: str = ''
 
 
@@ -390,6 +404,7 @@ class AnnouncementFeedItem(BaseModel):
     group_id: int
     group_name: str
     author_name: str
+    author_avatar_url: str = ''
     body: str
     created_at: datetime
 

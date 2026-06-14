@@ -52,6 +52,7 @@ export interface StageTiming {
 export interface StageStateSnapshot {
   session_id: number;
   current_stage: SessionStage;
+  stage_durations?: Record<SessionStage, number>;
   timing: StageTiming;
   updated_at: string;
 }

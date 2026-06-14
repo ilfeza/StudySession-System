@@ -11,6 +11,7 @@ export interface User {
   skills: string[];
   reliability_score: number;
   workload_limit: number;
+  avatar_url?: string;
   is_active?: boolean;
 }
 
@@ -22,6 +23,15 @@ export interface Group {
   visibility: GroupVisibility;
   invite_key: string;
   created_at: string;
+}
+
+export interface GroupMember {
+  user_id: number;
+  full_name: string;
+  email: string;
+  can_moderate: boolean;
+  is_owner: boolean;
+  joined_at: string;
 }
 
 export interface VideoSession {
@@ -47,6 +57,7 @@ export interface VideoSessionRoom {
   ends_at?: string | null;
   is_active: boolean;
   livekit_room: string;
+  created_by_id: number;
 }
 
 export type SessionTaskStatus = 'backlog' | 'assigned' | 'in_progress' | 'blocked' | 'done';
@@ -77,6 +88,7 @@ export interface SessionParticipant {
   full_name: string;
   is_online: boolean;
   can_moderate: boolean;
+  is_blocked?: boolean;
 }
 
 export interface SessionDashboardParticipant {
@@ -89,6 +101,7 @@ export interface SessionDashboardParticipant {
   workload_limit: number;
   load_percent: number;
   reliability_score: number;
+  is_blocked?: boolean;
   skills: string[];
 }
 
@@ -109,6 +122,7 @@ export interface SessionTask {
   created_by?: TaskPerson | null;
   assignee?: TaskPerson | null;
   workflow_stage?: string;
+  created_in_stage?: string;
   assignment_status?: string;
 }
 
@@ -190,6 +204,7 @@ export interface UserDirectory {
   email?: string;
   full_name: string;
   role: UserRole;
+  skills?: string[];
   is_online: boolean;
   current_status: string;
   is_active?: boolean;
@@ -234,6 +249,7 @@ export interface AnnouncementFeedItem {
   group_id: number;
   group_name: string;
   author_name: string;
+  author_avatar_url?: string;
   body: string;
   created_at: string;
 }

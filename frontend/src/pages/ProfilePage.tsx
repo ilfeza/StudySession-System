@@ -1,17 +1,13 @@
 import AlternateEmailRoundedIcon from '@mui/icons-material/AlternateEmailRounded';
 import CameraAltOutlinedIcon from '@mui/icons-material/CameraAltOutlined';
-import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
-import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
-import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
-import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
-import VideoCameraFrontRoundedIcon from '@mui/icons-material/VideoCameraFrontRounded';
 import {
   Alert,
   Avatar,
@@ -23,9 +19,10 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  ListItemButton,
+  ListItemText,
   Paper,
   Stack,
-  Switch,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
@@ -34,12 +31,12 @@ import {
 import type { PaletteMode } from '@mui/material';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { SkillsTagInput } from '../components/SkillsTagInput';
-import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useThemeMode } from '../context/ThemeModeContext';
-import type { UserProgress, UserRole } from '../types';
+import { roleLabel } from '../utils/roleLabels';
 
 function getInitials(fullName: string) {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -50,34 +47,6 @@ function createUsername(fullName: string, email: string) {
   const localPart = email.split('@')[0]?.trim();
   if (localPart) return localPart.toLowerCase();
   return fullName.trim().toLowerCase().replace(/\s+/g, '.');
-}
-
-function roleLabel(role?: UserRole) {
-  switch (role) {
-    case 'admin':
-      return 'Администратор платформы';
-    case 'instructor':
-      return 'Куратор обучения';
-    case 'student':
-    default:
-      return 'Участник учебных сессий';
-  }
-}
-
-function MetricCard({ title, value, icon }: { title: string; value: number; icon: ReactNode }) {
-  return (
-    <Paper sx={{ p: 2.25, borderRadius: '12px' }}>
-      <Stack spacing={1.5}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Typography variant="body2" color="text.secondary">{title}</Typography>
-          <Box sx={{ width: 34, height: 34, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: 'rgba(17, 24, 39, 0.05)', color: 'text.secondary' }}>
-            {icon}
-          </Box>
-        </Stack>
-        <Typography variant="h5">{value}</Typography>
-      </Stack>
-    </Paper>
-  );
 }
 
 function DetailField({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
@@ -92,245 +61,309 @@ function DetailField({ label, value, icon }: { label: string; value: string; ico
   );
 }
 
-function SettingsRow({ icon, title, description, action }: { icon: ReactNode; title: string; description: string; action: ReactNode }) {
+function ProfileSidebar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const items = [
+    { to: '/profile', label: 'Мой профиль', icon: <PersonRoundedIcon fontSize="small" /> },
+    { to: '/profile/settings', label: 'Настройки аккаунта', icon: <SettingsRoundedIcon fontSize="small" /> },
+  ];
+
   return (
-    <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" sx={{ py: 1.5 }}>
-      <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
-        <Box sx={{ width: 36, height: 36, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: 'rgba(17, 24, 39, 0.05)', color: 'text.secondary', flexShrink: 0 }}>
-          {icon}
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="subtitle2">{title}</Typography>
-          <Typography variant="body2" color="text.secondary">{description}</Typography>
-        </Box>
+    <Paper sx={{ p: 1, borderRadius: 2.5 }}>
+      <Stack spacing={0.5}>
+        {items.map((item) => {
+          const active = location.pathname === item.to;
+          return (
+            <ListItemButton key={item.to} selected={active} onClick={() => navigate(item.to)} sx={{ borderRadius: 1.5 }}>
+              <ListItemText primary={item.label} />
+              {item.icon}
+            </ListItemButton>
+          );
+        })}
       </Stack>
-      <Box sx={{ flexShrink: 0 }}>{action}</Box>
+    </Paper>
+  );
+}
+
+function ProfileOverview({
+  error,
+  displayName,
+  displayEmail,
+  displayUsername,
+  displayBio,
+  avatarSrc,
+  initials,
+  currentSkills,
+  onEdit,
+}: {
+  error: string;
+  displayName: string;
+  displayEmail: string;
+  displayUsername: string;
+  displayBio: string;
+  avatarSrc?: string;
+  initials: string;
+  currentSkills: string[];
+  onEdit: () => void;
+}) {
+  const { user } = useAuth();
+
+  return (
+    <Stack spacing={2}>
+      {error ? <Alert severity="warning">{error}</Alert> : null}
+
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2.5 }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Avatar src={avatarSrc} sx={{ width: 72, height: 72, bgcolor: 'text.primary', color: 'background.paper', fontWeight: 700 }}>
+              {initials}
+            </Avatar>
+            <Stack spacing={0.5}>
+              <Typography variant="h6">{displayName}</Typography>
+              <Typography variant="body2" color="text.secondary">{displayEmail}</Typography>
+              <Typography variant="body2" color="text.secondary">{roleLabel(user?.role)}</Typography>
+            </Stack>
+          </Stack>
+          <Button variant="contained" startIcon={<EditRoundedIcon />} onClick={onEdit}>
+            Редактировать профиль
+          </Button>
+        </Stack>
+      </Paper>
+
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2.5 }}>
+        <Stack spacing={2.5}>
+          <Typography variant="subtitle1">Личные данные</Typography>
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' } }}>
+            <DetailField label="Полное имя" value={displayName} icon={<PersonRoundedIcon fontSize="small" />} />
+            <DetailField label="Email" value={displayEmail} icon={<EmailRoundedIcon fontSize="small" />} />
+            <DetailField label="Username" value={`@${displayUsername}`} icon={<AlternateEmailRoundedIcon fontSize="small" />} />
+            <DetailField label="Роль" value={roleLabel(user?.role)} icon={<ShieldOutlinedIcon fontSize="small" />} />
+          </Box>
+          <Divider />
+          <Stack spacing={1}>
+            <Typography variant="subtitle2">О себе</Typography>
+            <Typography variant="body2" color="text.secondary">{displayBio}</Typography>
+          </Stack>
+          <Divider />
+          <Stack spacing={1}>
+            <Typography variant="subtitle2">Навыки</Typography>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              {currentSkills.length
+                ? currentSkills.map((skill) => <Chip key={skill} label={skill} size="small" />)
+                : <Typography variant="body2" color="text.secondary">Навыки пока не заполнены.</Typography>}
+            </Stack>
+          </Stack>
+        </Stack>
+      </Paper>
     </Stack>
   );
 }
 
-export function ProfilePage() {
-  const { user, logout, updateProfile } = useAuth();
+function ProfileSettings() {
+  const { logout } = useAuth();
   const { mode, setMode } = useThemeMode();
-  const [progress, setProgress] = useState<UserProgress | null>(null);
-  const [error, setError] = useState('');
-  const [editOpen, setEditOpen] = useState(false);
-  const [skillsOpen, setSkillsOpen] = useState(false);
-  const [savingSkills, setSavingSkills] = useState(false);
-  const [securityOpen, setSecurityOpen] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [weeklyDigestEnabled, setWeeklyDigestEnabled] = useState(false);
-  const [profileState, setProfileState] = useState({ fullName: '', email: '', username: '', bio: '', photoName: '' });
-  const [editDraft, setEditDraft] = useState({ fullName: '', email: '', username: '', bio: '', photoName: '' });
-  const [skillsDraft, setSkillsDraft] = useState<string[]>([]);
-
-  useEffect(() => {
-    api.get<UserProgress>('/users/me/progress')
-      .then((response) => {
-        setProgress(response.data);
-        setProfileState((prev) => ({
-          fullName: prev.fullName || response.data.full_name,
-          email: prev.email || response.data.email,
-          username: prev.username || createUsername(response.data.full_name, response.data.email),
-          bio: prev.bio || 'Собираю задачи, встречи и учебные договорённости в одном рабочем профиле.',
-          photoName: prev.photoName,
-        }));
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Не удалось загрузить профиль.'));
-  }, []);
-
-  const displayName = profileState.fullName || progress?.full_name || user?.full_name || 'Пользователь';
-  const displayEmail = profileState.email || progress?.email || user?.email || 'email@example.com';
-  const displayUsername = profileState.username || createUsername(displayName, displayEmail);
-  const displayBio = profileState.bio || 'Добавьте пару слов о себе, чтобы профиль выглядел живым и понятным команде.';
-  const initials = useMemo(() => getInitials(displayName), [displayName]);
-  const currentSkills = user?.skills ?? [];
-
-  const accountHighlights = [
-    currentSkills.length ? `${currentSkills.length} навыков в профиле` : 'Навыки пока не заполнены',
-    `Лимит нагрузки: ${user?.workload_limit ?? 0}`,
-    `Надёжность: ${Math.round(user?.reliability_score ?? 0)}%`,
-  ];
-
-  function openEditDialog() {
-    setEditDraft(profileState);
-    setEditOpen(true);
-  }
-
-  function openSkillsDialog() {
-    setSkillsDraft(currentSkills);
-    setSkillsOpen(true);
-  }
 
   function handleThemeChange(_: React.MouseEvent<HTMLElement>, nextMode: PaletteMode | null) {
     if (nextMode) setMode(nextMode);
   }
 
   return (
-    <Stack spacing={3}>
-      <Box sx={{ px: { xs: 0.5, md: 0 } }}>
-        <Typography variant="h4">Профиль</Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mt: 0.75, maxWidth: 720 }}>
-          Управляйте личными данными, навыками и настройками аккаунта в одном аккуратном пространстве.
-        </Typography>
+    <Stack spacing={2}>
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 2.5 }}>
+        <Stack spacing={2}>
+          <Typography variant="subtitle1">Настройки аккаунта</Typography>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between">
+            <Box>
+              <Typography variant="subtitle2">Цветовой режим</Typography>
+              <Typography variant="body2" color="text.secondary">Светлая или тёмная тема интерфейса.</Typography>
+            </Box>
+            <ToggleButtonGroup exclusive value={mode} onChange={handleThemeChange}>
+              <ToggleButton value="light"><LightModeRoundedIcon fontSize="small" sx={{ mr: 0.75 }} />Светлый</ToggleButton>
+              <ToggleButton value="dark"><DarkModeRoundedIcon fontSize="small" sx={{ mr: 0.75 }} />Тёмный</ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+
+          <Divider />
+
+          <Stack spacing={1.5}>
+            <Typography variant="subtitle2">Безопасность</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Смена пароля будет доступна после подключения серверного API.
+            </Typography>
+            <TextField label="Текущий пароль" type="password" fullWidth disabled placeholder="Скоро" />
+            <TextField label="Новый пароль" type="password" fullWidth disabled placeholder="Скоро" />
+          </Stack>
+
+          <Divider />
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} justifyContent="space-between">
+            <Box>
+              <Typography variant="subtitle2">Выход из аккаунта</Typography>
+              <Typography variant="body2" color="text.secondary">Завершить текущую сессию на этом устройстве.</Typography>
+            </Box>
+            <Button variant="outlined" color="error" startIcon={<LogoutRoundedIcon />} onClick={logout}>
+              Выйти
+            </Button>
+          </Stack>
+        </Stack>
+      </Paper>
+    </Stack>
+  );
+}
+
+export function ProfilePage() {
+  const { user, updateProfile, uploadAvatar } = useAuth();
+  const [error, setError] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileState, setProfileState] = useState({ fullName: '', email: '', username: '', bio: '' });
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+  const [editDraft, setEditDraft] = useState({ fullName: '', email: '', username: '', bio: '', skills: [] as string[] });
+
+  useEffect(() => {
+    if (!user) return;
+    setProfileState({
+      fullName: user.full_name,
+      email: user.email,
+      username: createUsername(user.full_name, user.email),
+      bio: 'Собираю задачи, встречи и учебные договорённости в одном рабочем профиле.',
+    });
+  }, [user]);
+
+  const displayName = profileState.fullName || user?.full_name || 'Пользователь';
+  const displayEmail = profileState.email || user?.email || 'email@example.com';
+  const displayUsername = profileState.username || createUsername(displayName, displayEmail);
+  const displayBio = profileState.bio || 'Добавьте пару слов о себе, чтобы профиль выглядел понятным команде.';
+  const initials = useMemo(() => getInitials(displayName), [displayName]);
+  const currentSkills = user?.skills ?? [];
+  const avatarSrc = avatarPreview || user?.avatar_url || undefined;
+
+  useEffect(() => {
+    if (user?.avatar_url && !avatarPreview) {
+      setProfileState((prev) => ({ ...prev, fullName: user.full_name, email: user.email }));
+    }
+  }, [user?.avatar_url, user?.email, user?.full_name, avatarPreview]);
+
+  function openEditDialog() {
+    setEditDraft({
+      fullName: displayName,
+      email: displayEmail,
+      username: displayUsername,
+      bio: displayBio,
+      skills: currentSkills,
+    });
+    setPendingAvatarFile(null);
+    setAvatarPreview(null);
+    setEditOpen(true);
+  }
+
+  function handleAvatarSelect(file: File | undefined) {
+    if (!file) return;
+    setPendingAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <Stack spacing={2.5}>
+      <Typography variant="h4">Профиль</Typography>
+
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '220px minmax(0, 1fr)' }, alignItems: 'start' }}>
+        <ProfileSidebar />
+
+        <Box>
+          <Routes>
+            <Route
+              index
+              element={(
+                <ProfileOverview
+                  error={error}
+                  displayName={displayName}
+                  displayEmail={displayEmail}
+                  displayUsername={displayUsername}
+                  displayBio={displayBio}
+                  avatarSrc={avatarSrc}
+                  initials={initials}
+                  currentSkills={currentSkills}
+                  onEdit={openEditDialog}
+                />
+              )}
+            />
+            <Route path="settings" element={<ProfileSettings />} />
+            <Route path="*" element={<Navigate to="/profile" replace />} />
+          </Routes>
+        </Box>
       </Box>
 
-      {error ? <Alert severity="warning">{error}</Alert> : null}
-
-      {progress ? (
-        <>
-          <Paper sx={{ p: { xs: 2.25, md: 3 }, borderRadius: '12px' }}>
-            <Stack spacing={2.5}>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', md: 'center' }} justifyContent="space-between">
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Avatar sx={{ width: 76, height: 76, bgcolor: '#111827', color: '#ffffff', fontSize: '1.5rem', fontWeight: 700 }}>{initials}</Avatar>
-                  <Stack spacing={0.75}>
-                    <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                      <Typography variant="h5">{displayName}</Typography>
-                      <Chip label="Аккаунт активен" size="small" />
-                    </Stack>
-                    <Typography variant="body1" color="text.secondary">{displayEmail}</Typography>
-                    <Typography variant="body2" color="text.secondary">{roleLabel(user?.role)}</Typography>
-                  </Stack>
-                </Stack>
-
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ width: { xs: '100%', md: 'auto' } }}>
-                  <Button variant="contained" startIcon={<EditRoundedIcon />} onClick={openEditDialog}>Редактировать профиль</Button>
-                  <Button variant="outlined" onClick={openSkillsDialog}>Изменить навыки</Button>
-                  <Button variant="outlined" startIcon={<LockRoundedIcon />} onClick={() => setSecurityOpen(true)}>Безопасность</Button>
-                </Stack>
-              </Stack>
-
-              <Divider />
-
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} useFlexGap flexWrap="wrap">
-                {accountHighlights.map((item) => <Chip key={item} label={item} sx={{ bgcolor: '#f9fafb' }} />)}
-              </Stack>
-
-              <Stack spacing={1.25}>
-                <Typography variant="subtitle2">Навыки</Typography>
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  {currentSkills.length ? currentSkills.map((skill) => <Chip key={skill} label={skill} />) : <Typography variant="body2" color="text.secondary">Навыки пока не заполнены.</Typography>}
-                </Stack>
-              </Stack>
-            </Stack>
-          </Paper>
-
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.3fr) minmax(320px, 0.9fr)' }, alignItems: 'start' }}>
-            <Paper sx={{ p: { xs: 2.25, md: 3 }, borderRadius: '12px' }}>
-              <Stack spacing={3}>
-                <Stack spacing={0.75}>
-                  <Typography variant="h6">Личные данные</Typography>
-                  <Typography variant="body2" color="text.secondary">Основная информация профиля, которую увидят ваши коллеги и участники учебных сессий.</Typography>
-                </Stack>
-                <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' } }}>
-                  <DetailField label="Полное имя" value={displayName} icon={<PersonRoundedIcon fontSize="small" />} />
-                  <DetailField label="Email" value={displayEmail} icon={<EmailRoundedIcon fontSize="small" />} />
-                  <DetailField label="Username" value={`@${displayUsername}`} icon={<AlternateEmailRoundedIcon fontSize="small" />} />
-                  <DetailField label="Роль" value={roleLabel(user?.role)} icon={<ShieldOutlinedIcon fontSize="small" />} />
-                </Box>
-                <Divider />
-                <Stack spacing={1.25}>
-                  <Typography variant="subtitle2">О себе</Typography>
-                  <Typography variant="body2" color="text.secondary">{displayBio}</Typography>
-                </Stack>
-              </Stack>
-            </Paper>
-
-            <Stack spacing={2}>
-              <Paper sx={{ p: { xs: 2.25, md: 3 }, borderRadius: '12px' }}>
-                <Stack spacing={0.5}>
-                  <Typography variant="h6">Статистика</Typography>
-                  <Typography variant="body2" color="text.secondary">Короткий срез активности без перегруженных виджетов.</Typography>
-                </Stack>
-                <Box sx={{ mt: 2, display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))', xl: '1fr' } }}>
-                  <MetricCard title="Сессии" value={progress.sessions_attended} icon={<VideoCameraFrontRoundedIcon fontSize="small" />} />
-                  <MetricCard title="Создано задач" value={progress.tasks_created} icon={<InsightsRoundedIcon fontSize="small" />} />
-                  <MetricCard title="Завершено задач" value={progress.tasks_completed} icon={<TaskAltRoundedIcon fontSize="small" />} />
-                </Box>
-              </Paper>
-              <Paper sx={{ p: { xs: 2.25, md: 3 }, borderRadius: '12px' }}>
-                <Stack spacing={0.5}>
-                  <Typography variant="h6">Настройки аккаунта</Typography>
-                  <Typography variant="body2" color="text.secondary">Повседневные предпочтения и действия по управлению аккаунтом.</Typography>
-                </Stack>
-                <Stack divider={<Divider />} sx={{ mt: 1.5 }}>
-                  <SettingsRow icon={<EmailRoundedIcon fontSize="small" />} title="Уведомления о сессиях" description="Напоминания о встречах и обновлениях по задачам." action={<Switch checked={notificationsEnabled} onChange={(event) => setNotificationsEnabled(event.target.checked)} />} />
-                  <SettingsRow icon={<InsightsRoundedIcon fontSize="small" />} title="Еженедельная сводка" description="Короткое письмо с прогрессом по задачам и посещаемости." action={<Switch checked={weeklyDigestEnabled} onChange={(event) => setWeeklyDigestEnabled(event.target.checked)} />} />
-                  <SettingsRow icon={mode === 'dark' ? <DarkModeRoundedIcon fontSize="small" /> : <LightModeRoundedIcon fontSize="small" />} title="Цветовой режим" description="Переключайте сайт между светлой и тёмной темой." action={<ToggleButtonGroup exclusive value={mode} size="small" onChange={handleThemeChange}><ToggleButton value="light">Светлый</ToggleButton><ToggleButton value="dark">Тёмный</ToggleButton></ToggleButtonGroup>} />
-                  <SettingsRow icon={<ShieldOutlinedIcon fontSize="small" />} title="Конфиденциальность и вход" description="Проверьте безопасность входа и параметры видимости аккаунта." action={<Button color="inherit" onClick={() => setSecurityOpen(true)} endIcon={<ChevronRightRoundedIcon />}>Открыть</Button>} />
-                  <SettingsRow icon={<LogoutRoundedIcon fontSize="small" />} title="Выход из аккаунта" description="Завершить текущую сессию на этом устройстве." action={<Button color="inherit" variant="outlined" onClick={logout}>Выйти</Button>} />
-                </Stack>
-              </Paper>
-            </Stack>
-          </Box>
-        </>
-      ) : null}
-
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={editOpen} onClose={() => !savingProfile && setEditOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Редактирование профиля</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Avatar src={avatarPreview || user.avatar_url} sx={{ width: 64, height: 64, bgcolor: 'text.primary', color: 'background.paper' }}>
+                {initials}
+              </Avatar>
+              <Button component="label" variant="outlined" startIcon={<CameraAltOutlinedIcon />}>
+                {pendingAvatarFile || user.avatar_url ? 'Заменить фото' : 'Загрузить фото'}
+                <input hidden type="file" accept="image/*" onChange={(event) => handleAvatarSelect(event.target.files?.[0])} />
+              </Button>
+            </Stack>
             <TextField label="Полное имя" fullWidth value={editDraft.fullName} onChange={(event) => setEditDraft((prev) => ({ ...prev, fullName: event.target.value }))} />
             <TextField label="Email" fullWidth value={editDraft.email} onChange={(event) => setEditDraft((prev) => ({ ...prev, email: event.target.value }))} />
             <TextField label="Username" fullWidth value={editDraft.username} onChange={(event) => setEditDraft((prev) => ({ ...prev, username: event.target.value.replace(/^@/, '') }))} />
             <TextField label="О себе" fullWidth multiline minRows={4} value={editDraft.bio} onChange={(event) => setEditDraft((prev) => ({ ...prev, bio: event.target.value }))} />
-            <Button component="label" variant="outlined" startIcon={<CameraAltOutlinedIcon />} sx={{ alignSelf: 'flex-start' }}>
-              {editDraft.photoName ? 'Заменить фото' : 'Загрузить фото'}
-              <input hidden type="file" accept="image/*" onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) setEditDraft((prev) => ({ ...prev, photoName: file.name }));
-              }} />
-            </Button>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button color="inherit" onClick={() => setEditOpen(false)}>Отмена</Button>
-          <Button variant="contained" onClick={() => { setProfileState(editDraft); setEditOpen(false); }}>Сохранить</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={skillsOpen} onClose={() => !savingSkills && setSkillsOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Изменить навыки</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 1 }}>
             <SkillsTagInput
-              value={skillsDraft}
-              onChange={setSkillsDraft}
-              helperText="Добавляйте навыки тегами. Они будут использоваться при распределении задач."
-              disabled={savingSkills}
+              value={editDraft.skills}
+              onChange={(skills) => setEditDraft((prev) => ({ ...prev, skills }))}
+              label="Навыки"
+              disabled={savingProfile}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setSkillsOpen(false)} disabled={savingSkills}>Отмена</Button>
+          <Button color="inherit" onClick={() => setEditOpen(false)} disabled={savingProfile}>Отмена</Button>
           <Button
             variant="contained"
-            disabled={savingSkills}
+            disabled={savingProfile}
             onClick={() => {
-              setSavingSkills(true);
-              updateProfile({ skills: skillsDraft })
-                .then(() => setSkillsOpen(false))
-                .catch((err: Error) => setError(err.message || 'Не удалось сохранить навыки.'))
-                .finally(() => setSavingSkills(false));
+              setSavingProfile(true);
+              const savePromise = pendingAvatarFile
+                ? uploadAvatar(pendingAvatarFile).then(() => updateProfile({
+                  full_name: editDraft.fullName,
+                  email: editDraft.email,
+                  skills: editDraft.skills,
+                }))
+                : updateProfile({
+                  full_name: editDraft.fullName,
+                  email: editDraft.email,
+                  skills: editDraft.skills,
+                });
+
+              savePromise
+                .then(() => {
+                  setProfileState({
+                    fullName: editDraft.fullName,
+                    email: editDraft.email,
+                    username: editDraft.username,
+                    bio: editDraft.bio,
+                  });
+                  setPendingAvatarFile(null);
+                  setAvatarPreview(null);
+                  setEditOpen(false);
+                })
+                .catch((err: Error) => setError(err.message || 'Не удалось сохранить профиль.'))
+                .finally(() => setSavingProfile(false));
             }}
           >
             Сохранить
           </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={securityOpen} onClose={() => setSecurityOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Безопасность аккаунта</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <Typography variant="body2" color="text.secondary">Здесь подготовлен интерфейс для смены пароля и управления входом. Серверную логику я не менял.</Typography>
-            <TextField label="Текущий пароль" type="password" fullWidth disabled placeholder="Станет доступно после подключения API" />
-            <TextField label="Новый пароль" type="password" fullWidth disabled placeholder="Станет доступно после подключения API" />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSecurityOpen(false)}>Закрыть</Button>
         </DialogActions>
       </Dialog>
     </Stack>

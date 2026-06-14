@@ -1,6 +1,4 @@
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
-import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
-import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import {
   AppBar,
   Box,
@@ -12,42 +10,34 @@ import {
   Toolbar,
   Typography,
   useMediaQuery,
-  useTheme,
 } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { alpha, useTheme } from '@mui/material/styles';
+import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
+import { StudySessionLogo } from './StudySessionLogo';
 
 function getNavigationItems(role?: string) {
   if (role === 'analyst') {
-    return [{ to: '/admin', label: 'Аналитика' }];
+    return [{ to: '/admin/overview', label: 'Аналитика' }];
   }
 
   const items = [
     { to: '/dashboard', label: 'Обзор' },
     { to: '/groups', label: 'Группы' },
-    { to: '/history', label: 'История' },
     { to: '/profile', label: 'Профиль' },
   ];
 
   if (role === 'admin') {
-    items.push({ to: '/admin', label: 'Админ-панель' });
+    items.push({ to: '/admin/overview', label: 'Админ-панель' });
   }
 
   return items;
 }
 
-function getShortDisplayName(fullName?: string | null) {
-  if (!fullName) {
-    return '';
-  }
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  return parts.slice(0, 2).join(' ');
-}
-
 export function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -55,11 +45,15 @@ export function AppLayout() {
   const isSessionRoute = location.pathname.startsWith('/sessions/');
   const navigationItems = useMemo(() => getNavigationItems(user?.role), [user?.role]);
 
+  useEffect(() => {
+    document.title = 'StudySession';
+  }, []);
+
   const nav = useMemo(
     () => (
       <Stack direction={isMobile ? 'column' : 'row'} spacing={1} alignItems={isMobile ? 'stretch' : 'center'}>
         {navigationItems.map((item) => {
-          const active = location.pathname === item.to;
+          const active = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`) || (item.to === '/admin/overview' && location.pathname.startsWith('/admin'));
           return (
             <Button
               key={item.to}
@@ -73,21 +67,9 @@ export function AppLayout() {
             </Button>
           );
         })}
-        <Typography variant="body2" color="text.secondary" sx={{ px: isMobile ? 1 : 0, ml: isMobile ? 0 : 1 }}>
-          {getShortDisplayName(user?.full_name)}
-        </Typography>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            setOpen(false);
-            logout();
-          }}
-        >
-          Выйти
-        </Button>
       </Stack>
     ),
-    [isMobile, location.pathname, logout, navigationItems, user?.full_name],
+    [isMobile, location.pathname, navigationItems],
   );
 
   if (isSessionRoute) {
@@ -99,38 +81,29 @@ export function AppLayout() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(180deg, rgba(249,250,251,0.98) 0%, rgba(243,244,246,1) 100%)' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar
         position="sticky"
         color="transparent"
+        elevation={0}
         sx={{
           borderBottom: '1px solid',
           borderColor: 'divider',
           backdropFilter: 'blur(14px)',
-          backgroundColor: 'rgba(243, 244, 246, 0.88)',
+          backgroundColor: alpha(theme.palette.background.paper, 0.9),
         }}
       >
         <Toolbar sx={{ minHeight: 72 }}>
-          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
-            <Box
-              sx={{
-                width: 42,
-                height: 42,
-                borderRadius: 1.5,
-                display: 'grid',
-                placeItems: 'center',
-                backgroundColor: '#111827',
-                color: '#ffffff',
-              }}
-            >
-              {user?.role === 'admin' || user?.role === 'analyst' ? <ShieldRoundedIcon fontSize="small" /> : <VideocamRoundedIcon fontSize="small" />}
-            </Box>
-            <Box>
-              <Typography variant="subtitle1">StudySession</Typography>
-              <Typography variant="caption" color="text.secondary">
-                {user?.role === 'analyst' ? 'Режим просмотра аналитики' : 'Учебные встречи, группы и совместная работа'}
-              </Typography>
-            </Box>
+          <Stack
+            component={RouterLink}
+            to={user ? '/dashboard' : '/auth'}
+            direction="row"
+            spacing={1.5}
+            alignItems="center"
+            sx={{ flexGrow: 1, textDecoration: 'none', color: 'inherit' }}
+          >
+            <StudySessionLogo size={36} sx={{ color: 'text.primary' }} />
+            <Typography variant="h4">StudySession</Typography>
           </Stack>
           {user && !isMobile && nav}
           {user && isMobile ? (

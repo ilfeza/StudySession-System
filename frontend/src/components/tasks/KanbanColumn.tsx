@@ -35,7 +35,9 @@ export function KanbanColumn({
         flexDirection: 'column',
         gap: 1.25,
         minWidth: 280,
+        height: '100%',
         minHeight: 0,
+        flex: '1 0 280px',
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
